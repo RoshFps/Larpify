@@ -1,0 +1,136 @@
+import type { BrowserContext } from '@playwright/test';
+
+// A stand-in for Spotify: the Web API, the image CDN and the Web Playback SDK.
+// Tests change `world.playback` to simulate what other devices are doing.
+
+export const DEVICE_ID = 'tab-device';
+const ACCESS_TOKEN = 'fake-access';
+
+const cover = (seed: number) => [{ url: `https://i.scdn.co/image/${seed}`, width: 300, height: 300 }];
+
+export const playlists = ['Late Night Drive', 'Gym Rotation', 'Lo-fi Focus', 'Throwbacks 2016', 'Rainy Day', 'Indie Mix'].map(
+  (name, i) => ({
+    id: `pl${i}`,
+    uri: `spotify:playlist:pl${i}`,
+    name,
+    images: cover(i * 40),
+    owner: { display_name: 'Roshan' },
+  }),
+);
+
+export const artists = ['Frank Ocean', 'Fred again..', 'FKA twigs'].map((name, i) => ({
+  id: `ar${i}`,
+  uri: `spotify:artist:ar${i}`,
+  name,
+  images: cover(200 + i * 40),
+}));
+
+export const track = {
+  id: 't1',
+  uri: 'spotify:track:t1',
+  name: 'Nights',
+  duration_ms: 307_000,
+  artists: [{ id: 'ar0', name: 'Frank Ocean' }],
+  album: { name: 'Blonde', images: cover(20) },
+};
+
+export function playingOn(deviceId: string, deviceName: string, isPlaying = true) {
+  return {
+    is_playing: isPlaying,
+    progress_ms: 1000,
+    device: { id: deviceId, name: deviceName, type: 'Smartphone', volume_percent: 50 },
+    item: track,
+  };
+}
+
+export interface World {
+  playback: ReturnType<typeof playingOn> | null;
+  lastPlayRequest: { context_uri?: string; uris?: string[] } | null;
+}
+
+const FAKE_SDK = `
+  window.Spotify = { Player: class {
+    constructor(options) { this.options = options; this.listeners = {}; window.__player = this; }
+    addListener(event, cb) { (this.listeners[event] ||= []).push(cb); return true; }
+    emit(event, data) { (this.listeners[event] || []).forEach((cb) => cb(data)); }
+    connect() {
+      this.options.getOAuthToken(() => {});
+      setTimeout(() => this.emit('ready', { device_id: '${DEVICE_ID}' }), 50);
+      return Promise.resolve(true);
+    }
+    disconnect() {}
+    activateElement() { return Promise.resolve(); }
+    togglePlay() { return Promise.resolve(); }
+    nextTrack() { return Promise.resolve(); }
+    previousTrack() { return Promise.resolve(); }
+    seek() { return Promise.resolve(); }
+    setVolume() { return Promise.resolve(); }
+    getCurrentState() { return Promise.resolve(null); }
+  }};
+  window.onSpotifyWebPlaybackSDKReady?.();
+`;
+
+export async function mockSpotify(context: BrowserContext, world: World): Promise<void> {
+  await context.route('https://i.scdn.co/**', (route) => {
+    const hue = Number(route.request().url().split('/').pop()) % 360;
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="hsl(${hue},55%,40%)"/></svg>`,
+    });
+  });
+
+  await context.route('https://sdk.scdn.co/spotify-player.js', (route) =>
+    route.fulfill({ contentType: 'application/javascript', body: FAKE_SDK }),
+  );
+
+  await context.route('https://accounts.spotify.com/api/token', (route) =>
+    route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"invalid_grant"}' }),
+  );
+
+  await context.route('https://api.spotify.com/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const json = (body: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+
+    if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}`) return route.fulfill({ status: 401 });
+
+    switch (url.pathname) {
+      case '/v1/me':
+        return json({ id: 'u1', display_name: 'Roshan', images: cover(300) });
+      case '/v1/me/playlists':
+        return json({ items: playlists, next: null, total: playlists.length });
+      case '/v1/search': {
+        if (url.searchParams.get('type') === 'artist') return json({ artists: { items: artists, next: null, total: 3 } });
+        const offset = Number(url.searchParams.get('offset'));
+        const items = Array.from({ length: 10 }, (_, i) => ({ ...track, id: `s${offset + i}`, uri: `spotify:track:s${offset + i}` }));
+        return json({ tracks: { items, next: null, total: 30 } });
+      }
+      case '/v1/me/player':
+        return world.playback ? json(world.playback) : route.fulfill({ status: 204 });
+      case '/v1/me/player/play':
+        world.lastPlayRequest = request.postDataJSON();
+        world.playback = playingOn(DEVICE_ID, 'Larpify (this tab)');
+        return route.fulfill({ status: 204 });
+      case '/v1/me/player/shuffle':
+        return route.fulfill({ status: 204 });
+      default:
+        return route.fulfill({ status: 404 });
+    }
+  });
+}
+
+/** Signs the browser in with fake tokens, once per test (not again on reload). */
+export async function signIn(context: BrowserContext, settings?: object, expiresInMs = 3_600_000): Promise<void> {
+  await context.addInitScript(
+    ([tokens, savedSettings]) => {
+      if (sessionStorage.getItem('e2e.seeded')) return;
+      sessionStorage.setItem('e2e.seeded', '1');
+      localStorage.setItem('larpify.tokens', tokens);
+      if (savedSettings) localStorage.setItem('larpify.settings', savedSettings);
+    },
+    [
+      JSON.stringify({ accessToken: ACCESS_TOKEN, refreshToken: 'fake-refresh', expiresAt: Date.now() + expiresInMs }),
+      settings ? JSON.stringify(settings) : null,
+    ] as const,
+  );
+}

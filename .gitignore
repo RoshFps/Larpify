@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Local config. Only .env.example belongs in git.
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/

@@ -1,0 +1,3 @@
+# Private app for friends; keep it out of search results.
+User-agent: *
+Disallow: /

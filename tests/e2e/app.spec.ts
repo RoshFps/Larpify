@@ -1,0 +1,117 @@
+import { expect, test, type Page } from '@playwright/test';
+import { DEVICE_ID, mockSpotify, playingOn, signIn, type World } from './mockSpotify';
+
+const playlistSettings = {
+  enabled: true,
+  idleMinutes: 1,
+  source: 'playlist',
+  playlist: { id: 'pl0', uri: 'spotify:playlist:pl0', name: 'Late Night Drive', imageUrl: null },
+  artists: [],
+  volume: 0.6,
+};
+
+function collectErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('pageerror', (err) => errors.push(err.message));
+  page.on('console', (msg) => {
+    // The mocked token endpoint answers 400 on purpose; everything else is a bug,
+    // including Content-Security-Policy violations.
+    if (msg.type() === 'error' && !msg.text().includes('400')) errors.push(msg.text());
+  });
+  return errors;
+}
+
+test('login sends the user to Spotify with PKCE and no client secret', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  const button = page.getByRole('button', { name: 'Log in with Spotify' });
+  await expect(button).toBeVisible();
+
+  await page.route('https://accounts.spotify.com/authorize**', (route) => route.fulfill({ body: 'ok' }));
+  const [request] = await Promise.all([
+    page.waitForRequest((r) => r.url().startsWith('https://accounts.spotify.com/authorize')),
+    button.click(),
+  ]);
+  const params = new URL(request.url()).searchParams;
+  expect(params.get('response_type')).toBe('code');
+  expect(params.get('code_challenge_method')).toBe('S256');
+  expect(params.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  expect(params.get('state')).toBeTruthy();
+  expect(params.get('show_dialog')).toBe('true');
+  expect(params.has('client_secret')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('autopilot waits while you listen, takes over when idle, and backs off', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  const world: World = { playback: playingOn('phone', "Roshan's iPhone"), lastPlayRequest: null };
+  await mockSpotify(context, world);
+  await signIn(context, playlistSettings);
+  await page.clock.install();
+  await page.goto('/');
+
+  await expect(page.getByText('You’re listening')).toBeVisible();
+
+  world.playback = playingOn('phone', "Roshan's iPhone", false);
+  await page.clock.fastForward(31_000);
+  await expect(page.getByText('Watching', { exact: true })).toBeVisible();
+
+  await page.clock.fastForward(61_000);
+  await expect(page.getByText('Playing on this tab')).toBeVisible();
+  expect(world.lastPlayRequest).toEqual({ context_uri: 'spotify:playlist:pl0' });
+
+  // You pick your phone back up: the tab's player goes quiet and autopilot steps aside.
+  world.playback = playingOn('phone', "Roshan's iPhone");
+  await page.evaluate(() => (window as unknown as { __player: { emit(e: string, d: null): void } }).__player.emit('player_state_changed', null));
+  await page.clock.fastForward(31_000);
+  await expect(page.getByText('You’re listening')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('artist mode only queues tracks by the picked artists', async ({ page, context }) => {
+  const world: World = { playback: null, lastPlayRequest: null };
+  await mockSpotify(context, world);
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Main' }).locator('visible=true');
+  await nav.getByRole('button', { name: 'Artists' }).click();
+  await page.getByPlaceholder('What artists do you want?').fill('f');
+  await page.getByRole('button', { name: /Frank Ocean/ }).click();
+  await page.getByRole('button', { name: /FKA twigs/ }).click();
+  await expect(page.getByRole('list', { name: 'Selected artists' }).getByRole('listitem')).toHaveCount(2);
+
+  await nav.getByRole('button', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Start now' }).click();
+  await expect.poll(() => world.lastPlayRequest?.uris?.length).toBe(30);
+  // The mock credits every search result to Frank Ocean only, so FKA twigs
+  // contributes nothing and every queued track must be his.
+  expect(world.lastPlayRequest?.uris?.every((uri) => uri.startsWith('spotify:track:s'))).toBe(true);
+});
+
+test('a revoked session clears tokens and returns to login', async ({ page, context }) => {
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await signIn(context, undefined, -1);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Log in with Spotify' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('larpify.tokens'))).toBeNull();
+});
+
+test('logging out leaves nothing behind for the next person', async ({ page, context }) => {
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('button', { name: 'Log in with Spotify' })).toBeVisible();
+  const leftovers = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('larpify.')));
+  expect(leftovers).toEqual([]);
+});
+
+test('layout fits the screen without sideways scrolling', async ({ page, context }) => {
+  await mockSpotify(context, { playback: playingOn(DEVICE_ID, 'Larpify (this tab)'), lastPlayRequest: null });
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Roshan');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflow).toBe(false);
+});
