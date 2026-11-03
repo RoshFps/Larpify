@@ -76,7 +76,6 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 - **Locked-down page**: a Content Security Policy only allows scripts from this site and Spotify's player, plus headers that stop other sites from framing it.
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.
 
-Turn on **Secret scanning** and **Push protection** in the repo's GitHub settings (Settings → Code security) for an extra safety net.
 
 ## Before you use it
 
