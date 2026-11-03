@@ -48,7 +48,11 @@ Larpify can't run without an open browser tab: Spotify's player needs a real bro
 1. Settings → System → Power: set sleep and screen-off to **Never** while plugged in. Closing the lid should do nothing.
 2. In the browser, open **Settings → Performance** and add your Larpify address under **Always keep these sites active**.
 3. Open your Larpify address, log in, switch autopilot on, and click the page once.
-4. So it recovers after a power cut: make a shortcut to the browser with `--autoplay-policy=no-user-gesture-required https://your-address/` and put it in the Startup folder (Win+R, `shell:startup`). Turn on automatic login for that Windows account.
+4. Make it open when Windows starts. In the repo's `scripts/autostart` folder, run:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Url https://your-address/
+   ```
+   It adds a Startup shortcut that opens Larpify in its own window. Log in there once; after a restart it plays without needing a click. Undo it with `uninstall-windows.ps1` (add `-RemoveProfile` to also clear its saved login). For a machine that restarts by itself after power cuts, also turn on automatic sign-in for that Windows account.
 5. Spotify allows only one active stream per account: if you start something on another device, autopilot steps aside on its own.
 
 - Keep the tab open. Closing it stops the player.
