@@ -42,6 +42,15 @@ Preview deployments get random URLs that Spotify won't accept, so test login on 
 
 ## Keeping it running
 
+Larpify can't run without an open browser tab: Spotify's player needs a real browser, and it deliberately won't work in headless or cloud setups. For unattended use, dedicate a spare machine (old laptop, mini PC) to the tab. The app keeps the screen awake while autopilot is on and reloads itself if the player drops for a couple of minutes.
+
+**Setting up a spare machine (Windows, Chrome or Edge):**
+1. Settings → System → Power: set sleep and screen-off to **Never** while plugged in. Closing the lid should do nothing.
+2. In the browser, open **Settings → Performance** and add your Larpify address under **Always keep these sites active**.
+3. Open your Larpify address, log in, switch autopilot on, and click the page once.
+4. So it recovers after a power cut: make a shortcut to the browser with `--autoplay-policy=no-user-gesture-required https://your-address/` and put it in the Startup folder (Win+R, `shell:startup`). Turn on automatic login for that Windows account.
+5. Spotify allows only one active stream per account: if you start something on another device, autopilot steps aside on its own.
+
 - Keep the tab open. Closing it stops the player.
 - Chrome and Edge put background tabs to sleep. Add the site under **Settings → Performance → Always keep these sites active**.
 - Browsers block sound until you've clicked the page once, so click anywhere after opening it.

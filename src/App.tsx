@@ -11,7 +11,9 @@ import { PlayerBar } from './components/PlayerBar';
 import { PlaylistsView } from './components/PlaylistsView';
 import { MobileNav, Sidebar, type View } from './components/Sidebar';
 import { pickImage } from './lib/format';
+import { useSelfHeal } from './player/useSelfHeal';
 import { useWebPlayback } from './player/useWebPlayback';
+import { useWakeLock } from './lib/useWakeLock';
 import { useSettings } from './settings/useSettings';
 
 type AuthStatus = 'checking' | 'signed-out' | 'signed-in';
@@ -47,6 +49,8 @@ function SignedInApp() {
     ? `${playback.state.paused}:${playback.state.track_window.current_track?.uri ?? ''}`
     : 'none';
   const autopilot = useAutopilot({ settings, deviceId: playback.deviceId, localStateKey });
+  useWakeLock(settings.enabled);
+  useSelfHeal(settings.enabled, playback.deviceId !== null);
 
   useEffect(() => {
     getMe().then(setMe, () => undefined);
