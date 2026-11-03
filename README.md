@@ -2,7 +2,7 @@
 
 Keeps your Spotify going while you're away. Larpify runs a Spotify player inside a browser tab, watches your account, and when nothing has played for a while it starts your chosen playlist (or a mix of only the artists you pick) on that tab. The moment you play something on your phone or desktop app, it steps aside.
 
-A fun project for a few friends. Read [Before you use it](#before-you-use-it).
+A fun project for a few friends.
 
 ![Home screen with autopilot playing on the tab](docs/screenshots/home.png)
 
