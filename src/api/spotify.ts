@@ -55,3 +55,16 @@ export async function playOnDevice(deviceId: string, request: PlayRequest): Prom
 export async function pauseDevice(deviceId: string): Promise<void> {
   await spotifyFetch(`/me/player/pause?device_id=${encodeURIComponent(deviceId)}`, 'PUT');
 }
+
+/** Spotify's own windows: roughly the last 4 weeks, 6 months and 12 months. */
+export type TimeRange = 'short_term' | 'medium_term' | 'long_term';
+
+export async function getTopArtists(range: TimeRange): Promise<Artist[]> {
+  const data = await spotifyFetch<Paging<Artist>>(`/me/top/artists?time_range=${range}&limit=50`);
+  return data?.items ?? [];
+}
+
+export async function getTopTracks(range: TimeRange): Promise<Track[]> {
+  const data = await spotifyFetch<Paging<Track>>(`/me/top/tracks?time_range=${range}&limit=50`);
+  return data?.items ?? [];
+}

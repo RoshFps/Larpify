@@ -134,3 +134,41 @@ test('quiet hours keep autopilot from starting overnight', async ({ page, contex
   await page.clock.fastForward(5 * 60_000);
   expect(world.lastPlayRequest).toBeNull();
 });
+
+test('recap predicts a top 5 and can target an artist with autopilot', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Main' }).locator('visible=true');
+  await nav.getByRole('button', { name: 'Recap' }).click();
+
+  const artists = page.getByRole('region', { name: 'Top artists' }).getByRole('listitem');
+  await expect(artists).toHaveCount(5);
+  // FKA twigs leads the 6-month and 4-week lists, which outweigh Frank Ocean's 12-month lead.
+  await expect(artists.first()).toContainText('FKA twigs');
+  await expect(page.getByRole('region', { name: 'Top songs' }).getByRole('listitem')).toHaveCount(5);
+
+  // The chart explains a ranking on hover/focus.
+  await page.getByRole('button', { name: /^#1 FKA twigs/ }).focus();
+  await expect(page.getByRole('tooltip')).toContainText('6 months: #1');
+
+  await page.getByRole('radio', { name: /Bon Iver/ }).click();
+  await expect(page.getByText(/Bon Iver.*is predicted at/)).toBeVisible();
+  await page.getByRole('button', { name: 'Play only Bon Iver on autopilot' }).click();
+
+  await expect(page.getByText('Only their songs will play')).toBeVisible();
+  const settings = await page.evaluate(() => JSON.parse(localStorage.getItem('larpify.settings')!));
+  expect(settings.source).toBe('artists');
+  expect(settings.artists.map((a: { name: string }) => a.name)).toEqual(['Bon Iver']);
+  expect(errors).toEqual([]);
+});
+
+test('recap asks for the extra permission on older sessions', async ({ page, context }) => {
+  await mockSpotify(context, { playback: null, lastPlayRequest: null, topScopeMissing: true });
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Main' }).locator('visible=true').getByRole('button', { name: 'Recap' }).click();
+  await expect(page.getByRole('button', { name: 'Allow access' })).toBeVisible();
+});

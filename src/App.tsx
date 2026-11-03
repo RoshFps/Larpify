@@ -14,6 +14,7 @@ import { pickImage } from './lib/format';
 import { useSelfHeal } from './player/useSelfHeal';
 import { useWebPlayback } from './player/useWebPlayback';
 import { useWakeLock } from './lib/useWakeLock';
+import { RecapView } from './recap/RecapView';
 import { useSettings } from './settings/useSettings';
 
 type AuthStatus = 'checking' | 'signed-out' | 'signed-in';
@@ -129,6 +130,14 @@ function SignedInApp() {
           <ArtistsView
             selected={settings.artists}
             onChange={(artists) => updateSettings({ artists, source: 'artists' })}
+          />
+        )}
+        {view === 'recap' && (
+          <RecapView
+            onTargetArtist={(artist) => {
+              updateSettings({ source: 'artists', artists: [artist] });
+              navigate('home');
+            }}
           />
         )}
       </main>

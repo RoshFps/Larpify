@@ -1,9 +1,9 @@
 import type { Playlist } from '../api/types';
 import { pickImage } from '../lib/format';
 import { Cover } from './Cover';
-import { HomeIcon, LibraryIcon, LogoMark, MicIcon } from './Icons';
+import { ChartIcon, HomeIcon, LibraryIcon, LogoMark, MicIcon } from './Icons';
 
-export type View = 'home' | 'playlists' | 'artists';
+export type View = 'home' | 'playlists' | 'artists' | 'recap';
 
 interface SidebarProps {
   view: View;
@@ -17,6 +17,7 @@ const NAV: { view: View; label: string; Icon: typeof HomeIcon }[] = [
   { view: 'home', label: 'Home', Icon: HomeIcon },
   { view: 'playlists', label: 'Playlists', Icon: LibraryIcon },
   { view: 'artists', label: 'Artists', Icon: MicIcon },
+  { view: 'recap', label: 'Recap', Icon: ChartIcon },
 ];
 
 export function Sidebar({ view, onNavigate, playlists, selectedPlaylistId, onPickPlaylist }: SidebarProps) {

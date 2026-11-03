@@ -97,3 +97,9 @@ export const MusicNoteIcon = (p: IconProps) => (
     <path d="M9 4v10.3A3.5 3.5 0 1 0 11 17.5V8h8V4H9Z" />
   </Icon>
 );
+
+export const ChartIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 20V10h3v10H4Zm6.5 0V4h3v16h-3ZM17 20v-7h3v7h-3Z" />
+  </Icon>
+);

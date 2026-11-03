@@ -7,7 +7,7 @@ import { hasSource, type Settings } from '../settings/useSettings';
 import { buildArtistMix } from './artistMix';
 import { initialState, setEnabled, startFailed, step, type EngineState } from './engine';
 import { isQuietTime } from './quietHours';
-import { addListening, readTodayMs } from './stats';
+import { addArtistListening, addListening, readTodayMs } from './stats';
 
 const START_GRACE_MS = 15_000;
 const PAGES_PER_ARTIST = 3;
@@ -121,7 +121,10 @@ export function useAutopilot({ settings, deviceId, localStateKey }: Options): Au
         previousTick !== null
       ) {
         // Cap the gap so a sleeping laptop doesn't count hours it wasn't playing.
-        setTodayMs(addListening(Math.min(now - previousTick, POLL_INTERVAL_MS * 2), now));
+        const playedMs = Math.min(now - previousTick, POLL_INTERVAL_MS * 2);
+        setTodayMs(addListening(playedMs, now));
+        const mainArtist = playback.item?.artists[0];
+        if (mainArtist) addArtistListening(mainArtist, playedMs, now);
       }
 
       const { state, decision } = step(

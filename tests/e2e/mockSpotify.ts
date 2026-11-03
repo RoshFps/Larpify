@@ -25,6 +25,10 @@ export const artists = ['Frank Ocean', 'Fred again..', 'FKA twigs'].map((name, i
   images: cover(200 + i * 40),
 }));
 
+const extraArtists = ['Mitski', 'Tame Impala', 'SZA', 'Bon Iver', 'Phoebe Bridgers', 'Kendrick Lamar', 'Clairo', 'Steve Lacy'].map(
+  (name, i) => ({ id: `ex${i}`, uri: `spotify:artist:ex${i}`, name, images: cover(100 + i * 25) }),
+);
+
 export const track = {
   id: 't1',
   uri: 'spotify:track:t1',
@@ -45,6 +49,8 @@ export function playingOn(deviceId: string, deviceName: string, isPlaying = true
 
 export interface World {
   playback: ReturnType<typeof playingOn> | null;
+  /** Simulates a session from before the Recap feature asked for top-items access. */
+  topScopeMissing?: boolean;
   lastPlayRequest: { context_uri?: string; uris?: string[] } | null;
 }
 
@@ -104,6 +110,17 @@ export async function mockSpotify(context: BrowserContext, world: World): Promis
         const offset = Number(url.searchParams.get('offset'));
         const items = Array.from({ length: 10 }, (_, i) => ({ ...track, id: `s${offset + i}`, uri: `spotify:track:s${offset + i}` }));
         return json({ tracks: { items, next: null, total: 30 } });
+      }
+      case '/v1/me/top/artists':
+      case '/v1/me/top/tracks': {
+        if (world.topScopeMissing) return route.fulfill({ status: 403, body: '{"error":{"message":"Insufficient client scope"}}' });
+        const range = url.searchParams.get('time_range');
+        const isArtists = url.pathname.endsWith('artists');
+        // Frank Ocean leads long-term; FKA twigs leads lately, so the blend has something to weigh.
+        const order = range === 'long_term' ? [0, 1, 2] : range === 'medium_term' ? [2, 0, 1] : [2, 1, 0];
+        const ranked = isArtists ? [...artists, ...extraArtists] : [...artists, ...extraArtists].map((a, i) => ({ ...track, id: `top${i}`, uri: `spotify:track:top${i}`, name: `Song by ${a.name}`, artists: [{ id: a.id, name: a.name }] }));
+        const head = order.map((i) => ranked[i]!);
+        return json({ items: [...head, ...ranked.slice(3)], next: null, total: ranked.length });
       }
       case '/v1/me/player':
         return world.playback ? json(world.playback) : route.fulfill({ status: 204 });

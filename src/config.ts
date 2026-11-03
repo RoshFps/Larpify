@@ -13,6 +13,7 @@ export const SCOPES = [
   'user-modify-playback-state',
   'playlist-read-private',
   'playlist-read-collaborative',
+  'user-top-read',
 ] as const;
 
 export const POLL_INTERVAL_MS = 30_000;

@@ -133,7 +133,7 @@ export function refresh(): Promise<Tokens> {
 }
 
 /** Everything Larpify keeps for the signed-in person, cleared together on sign-out. */
-const PER_USER_KEYS = [TOKENS_KEY, 'larpify.settings', 'larpify.stats'];
+const PER_USER_KEYS = [TOKENS_KEY, 'larpify.settings', 'larpify.stats', 'larpify.artistLog', 'larpify.recapSnapshots'];
 
 export function signOut(): void {
   tokens = null;
