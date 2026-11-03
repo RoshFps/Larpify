@@ -1,4 +1,4 @@
-# Larpify
+# Larpify: 
 
 Keeps your Spotify going while you're away. Larpify runs a Spotify player inside a browser tab, watches your account, and when nothing has played for a while it starts your chosen playlist (or a mix of only the artists you pick) on that tab. The moment you play something on your phone or desktop app, it steps aside.
 
@@ -81,11 +81,9 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.
 
 
-## Before you use it
-
-Spotify's [Developer Policy](https://developer.spotify.com/policy) prohibits artificially increasing play counts. Larpify plays real music on a real Premium session, but its purpose is to add listening time you aren't actively hearing, which is close to that line. Spotify can revoke the app's access or act on accounts it considers to be manipulating streams. Keep it to a few friends, and use it at your own risk.
-
 Larpify isn't affiliated with or endorsed by Spotify. "Spotify" is a trademark of Spotify AB.
+
+LARP LARP LARP SAHUUURRR
 
 ## License
 
