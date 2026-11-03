@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { beginLogin } from '../auth/session';
 import { REDIRECT_URI, SPOTIFY_CLIENT_ID } from '../config';
+import { AccessRequestForm } from '../access/AccessRequestForm';
 import { LogoMark } from './Icons';
 
 export function LoginScreen({ error }: { error: string | null }) {
   const [redirecting, setRedirecting] = useState(false);
+  const [asking, setAsking] = useState(false);
   const configured = SPOTIFY_CLIENT_ID.length > 0;
 
   return (
@@ -34,6 +36,15 @@ export function LoginScreen({ error }: { error: string | null }) {
             <code className="login__uri">{REDIRECT_URI}</code>
           </div>
         )}
+
+        {configured &&
+          (asking ? (
+            <AccessRequestForm />
+          ) : (
+            <button className="link-btn" onClick={() => setAsking(true)}>
+              New here? Ask to be added
+            </button>
+          ))}
 
         {error && (
           <p className="login__error" role="alert">

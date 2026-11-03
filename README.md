@@ -16,6 +16,7 @@ A fun project for a few friends.
 - **Recap prediction**: a live guess at your year-end top 5 artists and songs, with daily rank changes, a chart of where each artist's score comes from, and a one-click way to push an artist into your top 5.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
 - **Sync across devices**: log in on your phone and computer with the same Spotify account and your settings stay in step within seconds. Only one device's autopilot plays at a time.
+- **Ask to join**: friends who aren't on your Spotify app's user list yet can request access from the login page. You see the requests on an owner-only page, copy the email into the Spotify dashboard and mark it done.
 - Keeps the screen awake while autopilot is on, recovers by itself if the player drops, and can open at Windows sign-in.
 
 ## Screenshots
@@ -37,7 +38,7 @@ You need Node 22+ and Spotify Premium (the browser player requires it).
 1. Go to the [Spotify developer dashboard](https://developer.spotify.com/dashboard) and create an app.
    - Under **Which API/SDKs are you planning to use**, tick **Web API** and **Web Playback SDK**.
    - Add the Redirect URIs `http://127.0.0.1:5173/` (local) and your Vercel URL, e.g. `https://larpify.vercel.app/`. They must match exactly, including the trailing slash.
-   - Under **User Management**, add the Spotify email of every friend who will use it. Apps in development mode only work for listed users.
+   - Under **User Management**, add the Spotify email of every friend who will use it. Apps in development mode only work for listed users (Spotify allows up to 25). Friends can also ask from the app; see [Friend access requests](#friend-access-requests).
 2. Copy the env file and paste in your **Client ID** (never the client secret, which Larpify doesn't use):
    ```sh
    cp .env.example .env.local
@@ -56,6 +57,17 @@ You need Node 22+ and Spotify Premium (the browser player requires it).
 3. Deploy, then add the production URL (with trailing slash) as a Redirect URI in the Spotify dashboard.
 
 **Optional: sync between devices.** In Vercel, open **Storage → Create Database → Upstash (Redis)**, pick the free plan and connect it to this project, then redeploy. Vercel adds the `KV_REST_API_URL` / `KV_REST_API_TOKEN` variables for you; never put them in the repo. Without it the app works the same, with settings kept per browser. The sync function (`api/settings.ts`) checks each caller with Spotify and stores only the settings shown in the app, keyed by Spotify user id. It never stores Spotify tokens.
+
+### Friend access requests
+
+Spotify has no API for adding users to a development-mode app, so this is a to-do list for you rather than an automatic invite.
+
+1. Set up the Upstash store above (requests are saved there).
+2. In Vercel **Settings → Environment Variables**, add `ADMIN_SPOTIFY_IDS` with your Spotify username (find it at spotify.com → Account → Account overview → Username). Separate several with commas. Redeploy.
+3. Friends tap **New here? Ask to be added** on the login page, or see an **Almost in** screen if they log in before you've added them. They leave a name and their Spotify email.
+4. When you log in, a **Requests** page with a count appears (only for the ids in `ADMIN_SPOTIFY_IDS`). Copy each email into **User Management** in the [Spotify dashboard](https://developer.spotify.com/dashboard), then press **Mark added**.
+
+The request endpoint (`api/access-requests.ts`) is public by design, so it is limited: 5 requests per hour per IP, a hidden bot trap field, short length limits, at most 200 waiting, and asking twice with the same email just updates the request. Listing and clearing requests checks your Spotify login on every call.
 
 Preview deployments get random URLs that Spotify won't accept, so test login on the production URL (or add a fixed preview domain to the dashboard).
 
@@ -86,7 +98,7 @@ Larpify can't run without an open browser tab: Spotify's player needs a real bro
 | `npm run dev`      | Dev server on http://127.0.0.1:5173                       |
 | `npm run build`    | Type-check and build to `dist/`                           |
 | `npm run lint`     | ESLint                                                    |
-| `npm test`         | Unit tests (autopilot, quiet hours, recap model, PKCE)    |
+| `npm test`         | Unit tests, plus API tests for sync and access requests   |
 | `npm run test:e2e` | Browser tests on desktop and phone sizes, Spotify mocked  |
 | `npm run screenshots` | Regenerate the README screenshots from sample data     |
 
@@ -98,6 +110,7 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 - **Tokens stay in your browser.** Access and refresh tokens are kept in the tab's local storage and removed on log out. The optional sync function receives the access token only to ask Spotify who you are, and doesn't store it.
 - **Minimal scopes**: only playback, profile and reading your playlists. Larpify can't modify your library or playlists.
 - **Locked-down page**: a Content Security Policy only allows scripts from this site and Spotify's player, plus headers that stop other sites from framing it.
+- **Owner-only admin**: the access-request list is shown only to Spotify ids in the `ADMIN_SPOTIFY_IDS` server variable, verified with Spotify on every call. Friends' emails are never shown to other friends.
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.
 
 

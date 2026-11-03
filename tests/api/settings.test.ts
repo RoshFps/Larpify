@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeBackends } from './fakeBackends';
 
 const doc = (updatedAt: number, enabled = true) => ({
   updatedAt,
@@ -12,22 +13,6 @@ const doc = (updatedAt: number, enabled = true) => ({
   },
 });
 
-/** Fakes Spotify's /me and the Upstash REST API. */
-function fakeBackends(store: Map<string, string>) {
-  return vi.fn(async (url: string, init?: RequestInit) => {
-    if (url === 'https://api.spotify.com/v1/me') {
-      const auth = new Headers(init?.headers).get('authorization');
-      return auth === 'Bearer good-token'
-        ? Response.json({ id: 'roshan' })
-        : new Response('{}', { status: 401 });
-    }
-    const [command, key, value] = JSON.parse(String(init?.body)) as string[];
-    if (command === 'GET') return Response.json({ result: store.get(key!) ?? null });
-    store.set(key!, value!);
-    return Response.json({ result: 'OK' });
-  });
-}
-
 const request = (method: string, body?: unknown, token = 'good-token') =>
   new Request('https://larpify.test/api/settings', {
     method,
@@ -36,7 +21,7 @@ const request = (method: string, body?: unknown, token = 'good-token') =>
   });
 
 describe('/api/settings', () => {
-  let store: Map<string, string>;
+  let store: Map<string, unknown>;
 
   beforeEach(() => {
     vi.resetModules();
@@ -68,7 +53,7 @@ describe('/api/settings', () => {
     await api.PUT(request('PUT', doc(200, true)));
     const stale = await api.PUT(request('PUT', doc(100, false)));
     expect((await stale.json()).updatedAt).toBe(200);
-    expect(JSON.parse(store.get('larpify:settings:roshan')!).settings.enabled).toBe(true);
+    expect(JSON.parse(store.get('larpify:settings:roshan') as string).settings.enabled).toBe(true);
   });
 
   it('rejects callers Spotify does not recognise', async () => {

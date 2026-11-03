@@ -1658,3 +1658,155 @@ img {
     display: none;
   }
 }
+
+/* ---------- Access requests ---------- */
+
+.link-btn {
+  color: var(--text-sub);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-btn:hover {
+  color: var(--text);
+}
+
+.access-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field__label {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.field input {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.field input:hover {
+  border-color: var(--text);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+/* The bot trap: out of view, out of the tab order, ignored by screen readers. */
+.access-form__trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.access-form__done {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #000;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.mobile-nav__icon {
+  position: relative;
+  display: grid;
+}
+
+.mobile-nav__icon .badge {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 0.625rem;
+}
+
+.requests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+
+.request__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.request__name {
+  font-weight: 700;
+}
+
+.request__email {
+  color: var(--text-sub);
+  word-break: break-all;
+}
+
+.request__when {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.request__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn--compact {
+  min-height: 36px;
+  padding: 4px 18px;
+  font-size: 0.875rem;
+}
+
+.view-subtitle a {
+  color: var(--text);
+}

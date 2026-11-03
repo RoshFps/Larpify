@@ -1,9 +1,9 @@
 import type { Playlist } from '../api/types';
 import { pickImage } from '../lib/format';
 import { Cover } from './Cover';
-import { ChartIcon, HomeIcon, LibraryIcon, LogoMark, MicIcon } from './Icons';
+import { ChartIcon, HomeIcon, LibraryIcon, LogoMark, MicIcon, PersonAddIcon } from './Icons';
 
-export type View = 'home' | 'playlists' | 'artists' | 'recap';
+export type View = 'home' | 'playlists' | 'artists' | 'recap' | 'requests';
 
 interface SidebarProps {
   view: View;
@@ -11,6 +11,8 @@ interface SidebarProps {
   playlists: Playlist[] | null;
   selectedPlaylistId: string | null;
   onPickPlaylist: (playlist: Playlist) => void;
+  /** Pending access requests; null hides the Requests page (everyone but the owner). */
+  requestCount: number | null;
 }
 
 const NAV: { view: View; label: string; Icon: typeof HomeIcon }[] = [
@@ -20,7 +22,27 @@ const NAV: { view: View; label: string; Icon: typeof HomeIcon }[] = [
   { view: 'recap', label: 'Recap', Icon: ChartIcon },
 ];
 
-export function Sidebar({ view, onNavigate, playlists, selectedPlaylistId, onPickPlaylist }: SidebarProps) {
+function navItems(requestCount: number | null) {
+  return requestCount === null ? NAV : [...NAV, { view: 'requests' as const, label: 'Requests', Icon: PersonAddIcon }];
+}
+
+function Badge({ count }: { count: number | null }) {
+  if (!count) return null;
+  return (
+    <span className="badge" aria-label={`${count} waiting`}>
+      {count}
+    </span>
+  );
+}
+
+export function Sidebar({
+  view,
+  onNavigate,
+  playlists,
+  selectedPlaylistId,
+  onPickPlaylist,
+  requestCount,
+}: SidebarProps) {
   return (
     <aside className="sidebar">
       <nav className="panel sidebar__nav" aria-label="Main">
@@ -28,7 +50,7 @@ export function Sidebar({ view, onNavigate, playlists, selectedPlaylistId, onPic
           <LogoMark size={28} />
           <span>Larpify</span>
         </div>
-        {NAV.map(({ view: target, label, Icon }) => (
+        {navItems(requestCount).map(({ view: target, label, Icon }) => (
           <button
             key={target}
             className={`nav-link ${view === target ? 'is-active' : ''}`}
@@ -37,6 +59,7 @@ export function Sidebar({ view, onNavigate, playlists, selectedPlaylistId, onPic
           >
             <Icon />
             {label}
+            {target === 'requests' && <Badge count={requestCount} />}
           </button>
         ))}
       </nav>
@@ -70,17 +93,20 @@ export function Sidebar({ view, onNavigate, playlists, selectedPlaylistId, onPic
   );
 }
 
-export function MobileNav({ view, onNavigate }: Pick<SidebarProps, 'view' | 'onNavigate'>) {
+export function MobileNav({ view, onNavigate, requestCount }: Pick<SidebarProps, 'view' | 'onNavigate' | 'requestCount'>) {
   return (
     <nav className="mobile-nav" aria-label="Main">
-      {NAV.map(({ view: target, label, Icon }) => (
+      {navItems(requestCount).map(({ view: target, label, Icon }) => (
         <button
           key={target}
           className={`mobile-nav__link ${view === target ? 'is-active' : ''}`}
           aria-current={view === target ? 'page' : undefined}
           onClick={() => onNavigate(target)}
         >
-          <Icon />
+          <span className="mobile-nav__icon">
+            <Icon />
+            {target === 'requests' && <Badge count={requestCount} />}
+          </span>
           <span>{label}</span>
         </button>
       ))}

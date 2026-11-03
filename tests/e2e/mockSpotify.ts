@@ -51,17 +51,21 @@ export interface World {
   playback: ReturnType<typeof playingOn> | null;
   /** Simulates a session from before the Recap feature asked for top-items access. */
   topScopeMissing?: boolean;
+  /** Simulates an account the owner hasn't added in the Spotify dashboard yet. */
+  notAllowlisted?: boolean;
   lastPlayRequest: { context_uri?: string; uris?: string[] } | null;
+  /** How many times any tab asked Spotify to start playback. */
+  playCount?: number;
 }
 
-const FAKE_SDK = `
+const fakeSdk = (deviceId: string) => `
   window.Spotify = { Player: class {
     constructor(options) { this.options = options; this.listeners = {}; window.__player = this; }
     addListener(event, cb) { (this.listeners[event] ||= []).push(cb); return true; }
     emit(event, data) { (this.listeners[event] || []).forEach((cb) => cb(data)); }
     connect() {
       this.options.getOAuthToken(() => {});
-      setTimeout(() => this.emit('ready', { device_id: '${DEVICE_ID}' }), 50);
+      setTimeout(() => this.emit('ready', { device_id: '${deviceId}' }), 50);
       return Promise.resolve(true);
     }
     disconnect() {}
@@ -76,7 +80,8 @@ const FAKE_SDK = `
   window.onSpotifyWebPlaybackSDKReady?.();
 `;
 
-export async function mockSpotify(context: BrowserContext, world: World): Promise<void> {
+/** `deviceId` lets several tabs on one account show up as separate players. */
+export async function mockSpotify(context: BrowserContext, world: World, deviceId = DEVICE_ID): Promise<void> {
   await context.route('https://i.scdn.co/**', (route) => {
     const hue = Number(route.request().url().split('/').pop()) % 360;
     route.fulfill({
@@ -86,7 +91,7 @@ export async function mockSpotify(context: BrowserContext, world: World): Promis
   });
 
   await context.route('https://sdk.scdn.co/spotify-player.js', (route) =>
-    route.fulfill({ contentType: 'application/javascript', body: FAKE_SDK }),
+    route.fulfill({ contentType: 'application/javascript', body: fakeSdk(deviceId) }),
   );
 
   await context.route('https://accounts.spotify.com/api/token', (route) =>
@@ -102,6 +107,9 @@ export async function mockSpotify(context: BrowserContext, world: World): Promis
 
     switch (url.pathname) {
       case '/v1/me':
+        if (world.notAllowlisted) {
+          return route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}' });
+        }
         return json({ id: 'u1', display_name: 'Roshan', images: cover(300) });
       case '/v1/me/playlists':
         return json({ items: playlists, next: null, total: playlists.length });
@@ -126,7 +134,8 @@ export async function mockSpotify(context: BrowserContext, world: World): Promis
         return world.playback ? json(world.playback) : route.fulfill({ status: 204 });
       case '/v1/me/player/play':
         world.lastPlayRequest = request.postDataJSON();
-        world.playback = playingOn(DEVICE_ID, 'Larpify (this tab)');
+        world.playCount = (world.playCount ?? 0) + 1;
+        world.playback = playingOn(url.searchParams.get('device_id') ?? deviceId, 'Larpify (this tab)');
         return route.fulfill({ status: 204 });
       case '/v1/me/player/shuffle':
         return route.fulfill({ status: 204 });
@@ -167,4 +176,34 @@ export async function signIn(context: BrowserContext, settings?: object, expires
       settings ? JSON.stringify(settings) : null,
     ] as const,
   );
+}
+
+export interface AccessStore {
+  /** True when the signed-in account is the owner (listed in ADMIN_SPOTIFY_IDS). */
+  owner: boolean;
+  requests: { name: string; email: string; requestedAt: number }[];
+}
+
+/** Stands in for /api/access-requests: public POST, owner-only GET and DELETE. */
+export async function mockAccessRequests(context: BrowserContext, store: AccessStore): Promise<void> {
+  await context.route('**/api/access-requests**', async (route) => {
+    const request = route.request();
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON() as { name: string; email: string; website?: string };
+      if (!body.website) {
+        const email = body.email.trim().toLowerCase();
+        store.requests = [{ name: body.name.trim(), email, requestedAt: Date.now() }, ...store.requests.filter((r) => r.email !== email)];
+      }
+      return json({ ok: true }, 202);
+    }
+    if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}` || !store.owner) return json({ error: 'forbidden' }, 403);
+    if (request.method() === 'DELETE') {
+      const email = new URL(request.url()).searchParams.get('email');
+      store.requests = store.requests.filter((r) => r.email !== email);
+      return json({ ok: true });
+    }
+    return json({ requests: store.requests });
+  });
 }

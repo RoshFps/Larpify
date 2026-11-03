@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DEVICE_ID, mockSpotify, mockSyncServer, playingOn, signIn, type World } from './mockSpotify';
+import { DEVICE_ID, mockAccessRequests, mockSpotify, mockSyncServer, playingOn, signIn, type AccessStore, type World } from './mockSpotify';
 
 const playlistSettings = {
   enabled: true,
@@ -207,4 +207,115 @@ test('settings changed on one device show up on the other', async ({ browser }) 
 
   await pc.context().close();
   await phone.context().close();
+});
+
+test('a friend can ask to be added from the login page', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  const store: AccessStore = { owner: false, requests: [] };
+  await mockAccessRequests(context, store);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New here? Ask to be added' }).click();
+  await page.getByLabel('Your name').fill('  Priya ');
+  await page.getByLabel('The email you use for Spotify').fill('Priya@Example.com');
+  await page.getByRole('button', { name: 'Request access' }).click();
+  await expect(page.getByText('Request sent.')).toBeVisible();
+  expect(store.requests).toEqual([{ name: 'Priya', email: 'priya@example.com', requestedAt: expect.any(Number) }]);
+  expect(errors).toEqual([]);
+});
+
+test('an account that is not on the list yet can ask from inside', async ({ page, context }) => {
+  const store: AccessStore = { owner: false, requests: [] };
+  await mockSpotify(context, { playback: null, lastPlayRequest: null, notAllowlisted: true });
+  await mockAccessRequests(context, store);
+  await signIn(context);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Almost in' })).toBeVisible();
+  await page.getByLabel('Your name').fill('Sam');
+  await page.getByLabel('The email you use for Spotify').fill('sam@example.com');
+  await page.getByRole('button', { name: 'Request access' }).click();
+  await expect(page.getByText('Request sent.')).toBeVisible();
+  expect(store.requests.map((r) => r.email)).toEqual(['sam@example.com']);
+
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('button', { name: 'Log in with Spotify' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('larpify.tokens'))).toBeNull();
+});
+
+test('friends never see the Requests page', async ({ page, context }) => {
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await mockAccessRequests(context, { owner: false, requests: [{ name: 'Sam', email: 'sam@example.com', requestedAt: 1 }] });
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Roshan');
+  await expect(page.getByRole('button', { name: /Requests/ })).toHaveCount(0);
+  await expect(page.getByText('sam@example.com')).toHaveCount(0);
+});
+
+test('the owner sees requests, copies an email and marks it added', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const store: AccessStore = {
+    owner: true,
+    requests: [
+      { name: 'Priya', email: 'priya@example.com', requestedAt: Date.now() },
+      { name: 'Sam', email: 'sam@example.com', requestedAt: Date.now() - 86_400_000 },
+    ],
+  };
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await mockAccessRequests(context, store);
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+
+  const nav = page.getByRole('button', { name: /Requests/ });
+  await expect(nav).toContainText('2');
+  await nav.click();
+  await expect(page.getByRole('heading', { name: 'Access requests' })).toBeVisible();
+
+  const priya = page.getByRole('listitem').filter({ hasText: 'priya@example.com' });
+  await priya.getByRole('button', { name: 'Copy email' }).click();
+  await expect(priya.getByRole('button', { name: 'Copied' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('priya@example.com');
+
+  await priya.getByRole('button', { name: 'Mark added' }).click();
+  await expect(priya).toHaveCount(0);
+  await expect(nav).toContainText('1');
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'sam@example.com' })
+    .getByRole('button', { name: 'Mark added' })
+    .click();
+  await expect(page.getByText('No one is waiting.')).toBeVisible();
+  expect(store.requests).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('three tabs on one account start playback only once', async ({ browser }) => {
+  const world: World = { playback: playingOn('phone', "Roshan's iPhone", false), lastPlayRequest: null };
+  const server = { doc: null as unknown };
+
+  const openTab = async (deviceId: string) => {
+    const context = await browser.newContext();
+    await mockSpotify(context, world, deviceId);
+    await mockSyncServer(context, server);
+    await signIn(context, playlistSettings);
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    return page;
+  };
+  const tabs = await Promise.all(['tab-a', 'tab-b', 'tab-c'].map(openTab));
+
+  // Everyone goes idle together; the first tab to notice takes over.
+  for (const tab of tabs) await tab.clock.fastForward(31_000);
+  await tabs[0]!.clock.fastForward(61_000);
+  await expect.poll(() => world.playCount).toBe(1);
+  await expect(tabs[0]!.getByText('Playing on this tab')).toBeVisible();
+
+  // The others re-check before starting, see music already going, and stay out of it.
+  for (const tab of tabs.slice(1)) await tab.clock.fastForward(92_000);
+  for (const tab of tabs.slice(1)) await expect(tab.getByText('Playing on this tab')).toHaveCount(0);
+  expect(world.playCount).toBe(1);
+
+  await Promise.all(tabs.map((tab) => tab.context().close()));
 });

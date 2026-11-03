@@ -103,3 +103,9 @@ export const ChartIcon = (p: IconProps) => (
     <path d="M4 20V10h3v10H4Zm6.5 0V4h3v16h-3ZM17 20v-7h3v7h-3Z" />
   </Icon>
 );
+
+export const PersonAddIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M10 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm0 8c3.3 0 7 1.6 7 4.5V21H3v-2.5C3 15.6 6.7 14 10 14Zm0 2c-2.7 0-4.8 1.2-5 2.5V19h10v-.5c-.2-1.3-2.3-2.5-5-2.5Zm9-9h2v2h2v2h-2v2h-2v-2h-2V9h2V7Z" />
+  </Icon>
+);
