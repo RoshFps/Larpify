@@ -585,6 +585,66 @@ img {
 
 /* Settings */
 
+.quiet-hours {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quiet-hours__to {
+  font-size: 0.875rem;
+  color: var(--text-sub);
+}
+
+.select {
+  height: 32px;
+  padding: 0 28px 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.07)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23b3b3b3' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")
+    no-repeat right 12px center;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+}
+
+.select:hover:not(:disabled) {
+  background-color: rgb(255 255 255 / 0.12);
+}
+
+.select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.select option {
+  background: var(--surface-raised);
+}
+
+.switch--small {
+  margin-left: 4px;
+}
+
+.switch--small .switch__track {
+  width: 40px;
+  height: 24px;
+}
+
+.switch--small .switch__track::after {
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+}
+
+.switch--small input:checked + .switch__track::after {
+  transform: translateX(16px);
+}
+
 .settings-card {
   margin-top: 24px;
   border-radius: var(--radius);

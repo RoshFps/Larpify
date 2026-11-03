@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { QuietHours } from '../autopilot/quietHours';
 import { readJson, writeJson } from '../lib/storage';
 
 export interface SourceItem {
@@ -15,6 +16,7 @@ export interface Settings {
   playlist: SourceItem | null;
   artists: SourceItem[];
   volume: number;
+  quietHours: QuietHours;
 }
 
 const KEY = 'larpify.settings';
@@ -26,6 +28,7 @@ const DEFAULTS: Settings = {
   playlist: null,
   artists: [],
   volume: 0.6,
+  quietHours: { enabled: true, start: 2, end: 8 },
 };
 
 export function useSettings() {

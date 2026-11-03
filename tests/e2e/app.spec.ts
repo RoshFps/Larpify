@@ -8,6 +8,8 @@ const playlistSettings = {
   playlist: { id: 'pl0', uri: 'spotify:playlist:pl0', name: 'Late Night Drive', imageUrl: null },
   artists: [],
   volume: 0.6,
+  // Off by default in tests so results don't depend on what time CI runs.
+  quietHours: { enabled: false, start: 2, end: 8 },
 };
 
 function collectErrors(page: Page): string[] {
@@ -114,4 +116,21 @@ test('layout fits the screen without sideways scrolling', async ({ page, context
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Roshan');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
+});
+
+test('quiet hours keep autopilot from starting overnight', async ({ page, context }) => {
+  const world: World = { playback: null, lastPlayRequest: null };
+  await mockSpotify(context, world);
+  // The fake clock jumps to 3 AM, so the fake session must outlive that jump.
+  await signIn(context, { ...playlistSettings, quietHours: { enabled: true, start: 2, end: 8 } }, 7 * 24 * 3_600_000);
+  await page.clock.install({ time: new Date(2026, 10, 3, 3, 0) });
+  await page.goto('/');
+
+  await expect(page.getByText('Quiet hours', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Autopilot rests until 8 AM.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start now' })).toHaveCount(0);
+
+  // Well past the 1-minute idle time, still inside quiet hours: nothing plays.
+  await page.clock.fastForward(5 * 60_000);
+  expect(world.lastPlayRequest).toBeNull();
 });

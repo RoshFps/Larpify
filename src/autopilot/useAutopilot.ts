@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AuthError } from '../auth/session';
-import { getPlaybackState, playOnDevice, searchTracksByArtist, type PlayRequest } from '../api/spotify';
+import { getPlaybackState, pauseDevice, playOnDevice, searchTracksByArtist, type PlayRequest } from '../api/spotify';
 import type { PlaybackState, Track } from '../api/types';
 import { POLL_INTERVAL_MS } from '../config';
 import { hasSource, type Settings } from '../settings/useSettings';
 import { buildArtistMix } from './artistMix';
 import { initialState, setEnabled, startFailed, step, type EngineState } from './engine';
+import { isQuietTime } from './quietHours';
 import { addListening, readTodayMs } from './stats';
 
 const START_GRACE_MS = 15_000;
@@ -129,11 +130,13 @@ export function useAutopilot({ settings, deviceId, localStateKey }: Options): Au
           now,
           playback: playback ? { isPlaying: playback.is_playing, deviceId: playback.device?.id ?? null } : null,
           ourDeviceId: ours,
+          quiet: isQuietTime(new Date(now), settingsRef.current.quietHours),
         },
         { idleMs: settingsRef.current.idleMinutes * 60_000, startGraceMs: START_GRACE_MS },
       );
       commit(state);
       if (decision === 'start') await start();
+      if (decision === 'stop' && ours) await pauseDevice(ours);
     } catch (err) {
       // AuthError signs the user out elsewhere; anything else is worth showing.
       if (!(err instanceof AuthError)) setError(err instanceof Error ? err.message : 'Lost contact with Spotify.');

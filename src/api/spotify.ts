@@ -51,3 +51,7 @@ export async function playOnDevice(deviceId: string, request: PlayRequest): Prom
   // It's a nice-to-have, so a failure here shouldn't fail the whole start.
   await spotifyFetch(`/me/player/shuffle?state=true&device_id=${device}`, 'PUT').catch(() => undefined);
 }
+
+export async function pauseDevice(deviceId: string): Promise<void> {
+  await spotifyFetch(`/me/player/pause?device_id=${encodeURIComponent(deviceId)}`, 'PUT');
+}

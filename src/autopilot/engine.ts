@@ -15,6 +15,8 @@ export interface Observation {
   /** What Spotify reports for the account, or null when no device is active. */
   playback: { isPlaying: boolean; deviceId: string | null } | null;
   ourDeviceId: string | null;
+  /** Inside the user's quiet hours: never start, and stop if already playing. */
+  quiet: boolean;
 }
 
 export interface EngineConfig {
@@ -23,7 +25,7 @@ export interface EngineConfig {
   startGraceMs: number;
 }
 
-export type Decision = 'none' | 'start';
+export type Decision = 'none' | 'start' | 'stop';
 
 export const initialState: EngineState = { phase: 'off', idleSince: null, engagedAt: null };
 
@@ -35,7 +37,7 @@ export function setEnabled(state: EngineState, enabled: boolean, now: number): E
 
 export function step(
   state: EngineState,
-  { now, playback, ourDeviceId }: Observation,
+  { now, playback, ourDeviceId, quiet }: Observation,
   { idleMs, startGraceMs }: EngineConfig,
 ): { state: EngineState; decision: Decision } {
   const playingOnOurs = !!playback?.isPlaying && !!ourDeviceId && playback.deviceId === ourDeviceId;
@@ -50,13 +52,21 @@ export function step(
         return { state: { ...state, idleSince: null }, decision: 'none' };
       }
       const idleSince = state.idleSince ?? now;
-      if (ourDeviceId && now - idleSince >= idleMs) {
+      if (!quiet && ourDeviceId && now - idleSince >= idleMs) {
         return { state: { phase: 'engaged', idleSince: null, engagedAt: now }, decision: 'start' };
       }
       return { state: { ...state, idleSince }, decision: 'none' };
     }
 
     case 'engaged': {
+      if (quiet) {
+        // Quiet hours began mid-session. Pausing our own tab is fine; anything
+        // the user is playing elsewhere is theirs and is left alone.
+        return {
+          state: { phase: 'watching', idleSince: now, engagedAt: null },
+          decision: playingOnOurs ? 'stop' : 'none',
+        };
+      }
       if (playingOnOurs) return { state, decision: 'none' };
       if (playingElsewhere) {
         // The user picked up their phone or desktop app; get out of the way.

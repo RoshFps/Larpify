@@ -5,8 +5,13 @@ const config = { idleMs: 10 * 60_000, startGraceMs: 15_000 };
 const OURS = 'tab-device';
 const PHONE = 'phone-device';
 
-function observe(now: number, playback: Observation['playback'], ourDeviceId: string | null = OURS): Observation {
-  return { now, playback, ourDeviceId };
+function observe(
+  now: number,
+  playback: Observation['playback'],
+  ourDeviceId: string | null = OURS,
+  quiet = false,
+): Observation {
+  return { now, playback, ourDeviceId, quiet };
 }
 
 describe('autopilot engine', () => {
@@ -82,5 +87,26 @@ describe('autopilot engine', () => {
 
   it('waits a full period after a failed start', () => {
     expect(startFailed(500)).toEqual({ phase: 'watching', idleSince: 500, engagedAt: null });
+  });
+
+  it('never starts during quiet hours, and starts right after they end', () => {
+    const state = setEnabled(initialState, true, 0);
+    const quiet = step(state, observe(config.idleMs * 5, null, OURS, true), config);
+    expect(quiet.decision).toBe('none');
+    // The idle clock kept running, so playback starts as soon as quiet hours end.
+    expect(step(quiet.state, observe(config.idleMs * 5 + 1, null), config).decision).toBe('start');
+  });
+
+  it('pauses the tab when quiet hours begin mid-session', () => {
+    const engaged: EngineState = { phase: 'engaged', idleSince: null, engagedAt: 0 };
+    const result = step(engaged, observe(60_000, { isPlaying: true, deviceId: OURS }, OURS, true), config);
+    expect(result.decision).toBe('stop');
+    expect(result.state).toEqual({ phase: 'watching', idleSince: 60_000, engagedAt: null });
+  });
+
+  it('leaves the user\'s own playback alone during quiet hours', () => {
+    const engaged: EngineState = { phase: 'engaged', idleSince: null, engagedAt: 0 };
+    const result = step(engaged, observe(60_000, { isPlaying: true, deviceId: PHONE }, OURS, true), config);
+    expect(result.decision).toBe('none');
   });
 });

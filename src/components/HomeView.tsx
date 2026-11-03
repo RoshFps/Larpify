@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { UserProfile } from '../api/types';
+import { formatHour, isQuietTime } from '../autopilot/quietHours';
 import type { Autopilot } from '../autopilot/useAutopilot';
 import { IDLE_MINUTE_OPTIONS } from '../config';
 import { formatDuration, greeting } from '../lib/format';
@@ -32,7 +33,8 @@ export function HomeView({
 }: HomeViewProps) {
   const now = useNow(15_000);
   const ready = hasSource(settings);
-  const status = describeStatus({ settings, ready, autopilot, playerReady, playerError, now });
+  const quiet = isQuietTime(new Date(now), settings.quietHours);
+  const status = describeStatus({ settings, ready, autopilot, playerReady, playerError, now, quiet });
 
   return (
     <div className="view view--home">
@@ -76,7 +78,7 @@ export function HomeView({
             <span className="stat__value">{formatDuration(autopilot.todayMs)}</span>
             <span className="stat__label">played by autopilot today</span>
           </div>
-          {settings.enabled && ready && autopilot.phase === 'watching' && playerReady && (
+          {settings.enabled && ready && autopilot.phase === 'watching' && playerReady && !quiet && (
             <button
               className="btn btn--outline"
               onClick={() => {
@@ -111,6 +113,8 @@ export function HomeView({
           </div>
         </div>
 
+        <QuietHoursSetting settings={settings} onChange={onChange} />
+
         <div className="setting">
           <div>
             <h3 className="setting__title">Play from</h3>
@@ -138,6 +142,61 @@ export function HomeView({
         Keep this tab open; closing it stops the player. In Chrome or Edge, add this site to the “Always keep these
         sites active” list under Performance settings so the browser doesn't put it to sleep.
       </p>
+    </div>
+  );
+}
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+
+function QuietHoursSetting({ settings, onChange }: Pick<HomeViewProps, 'settings' | 'onChange'>) {
+  const quietHours = settings.quietHours;
+  const update = (patch: Partial<Settings['quietHours']>) => onChange({ quietHours: { ...quietHours, ...patch } });
+
+  return (
+    <div className="setting">
+      <div>
+        <h3 className="setting__title">Quiet hours</h3>
+        <p className="setting__hint">No autopilot overnight, so your listening looks like a real day.</p>
+      </div>
+      <div className="quiet-hours">
+        <select
+          className="select"
+          aria-label="Quiet hours start"
+          value={quietHours.start}
+          disabled={!quietHours.enabled}
+          onChange={(e) => update({ start: Number(e.target.value) })}
+        >
+          {HOURS.map((hour) => (
+            <option key={hour} value={hour}>
+              {formatHour(hour)}
+            </option>
+          ))}
+        </select>
+        <span className="quiet-hours__to">to</span>
+        <select
+          className="select"
+          aria-label="Quiet hours end"
+          value={quietHours.end}
+          disabled={!quietHours.enabled}
+          onChange={(e) => update({ end: Number(e.target.value) })}
+        >
+          {HOURS.map((hour) => (
+            <option key={hour} value={hour}>
+              {formatHour(hour)}
+            </option>
+          ))}
+        </select>
+        <label className="switch switch--small">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={quietHours.enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
+          <span className="switch__track" aria-hidden="true" />
+          <span className="sr-only">Quiet hours</span>
+        </label>
+      </div>
     </div>
   );
 }
@@ -185,7 +244,9 @@ function describeStatus({
   playerReady,
   playerError,
   now,
+  quiet,
 }: {
+  quiet: boolean;
   settings: Settings;
   ready: boolean;
   autopilot: Autopilot;
@@ -203,6 +264,13 @@ function describeStatus({
   if (autopilot.error) return { tone: 'problem', title: 'Will retry', detail: autopilot.error };
   if (!playerReady) return { tone: 'waiting', title: 'Connecting', detail: 'Starting the player in this tab…' };
 
+  if (quiet && autopilot.phase !== 'engaged') {
+    return {
+      tone: 'off',
+      title: 'Quiet hours',
+      detail: `Autopilot rests until ${formatHour(settings.quietHours.end)}. Anything you play yourself isn't affected.`,
+    };
+  }
   if (autopilot.phase === 'engaged') {
     return { tone: 'live', title: 'Playing on this tab', detail: 'Start something on another device and it steps aside.' };
   }
