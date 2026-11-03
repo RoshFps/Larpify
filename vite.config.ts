@@ -41,6 +41,6 @@ export default defineConfig(({ mode }) => {
     server: { host: '127.0.0.1', port: 5173, strictPort: true },
     preview: { host: '127.0.0.1', port: 4173, strictPort: true },
     build: { sourcemap: false, target: 'es2022' },
-    test: { include: ['src/**/*.test.ts'] },
+    test: { include: ['src/**/*.test.ts', 'tests/api/**/*.test.ts'] },
   };
 });

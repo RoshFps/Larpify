@@ -94,6 +94,13 @@ export function useAutopilot({ settings, deviceId, localStateKey }: Options): Au
     const device = deviceRef.current;
     try {
       if (!device) throw new Error('The player in this tab is not ready yet.');
+      // Another device running Larpify on the same account may have just started.
+      // Check once more right before playing so two tabs don't keep taking turns.
+      const latest = await getPlaybackState();
+      if (latest?.is_playing && latest.device?.id !== device) {
+        commit({ phase: 'watching', idleSince: null, engagedAt: null });
+        return;
+      }
       await playOnDevice(device, await buildRequest());
       setError(null);
     } catch (err) {

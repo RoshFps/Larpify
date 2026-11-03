@@ -16,6 +16,7 @@ import { useWebPlayback } from './player/useWebPlayback';
 import { useWakeLock } from './lib/useWakeLock';
 import { RecapView } from './recap/RecapView';
 import { useSettings } from './settings/useSettings';
+import { useSettingsSync } from './sync/useSettingsSync';
 
 type AuthStatus = 'checking' | 'signed-out' | 'signed-in';
 
@@ -40,7 +41,8 @@ export default function App() {
 
 function SignedInApp() {
   const [view, setView] = useState<View>('home');
-  const [settings, updateSettings] = useSettings();
+  const [settings, updateSettings, applyRemoteSettings] = useSettings();
+  const syncStatus = useSettingsSync(settings, applyRemoteSettings);
   const [me, setMe] = useState<UserProfile | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
@@ -95,6 +97,8 @@ function SignedInApp() {
         <div className="topbar">
           {me && (
             <div className="account">
+              {syncStatus === 'synced' && <span className="sync-chip">Synced across devices</span>}
+              {syncStatus === 'offline' && <span className="sync-chip sync-chip--offline">Sync offline</span>}
               <Cover src={pickImage(me.images, 32)} size={32} round alt="" />
               <button className="btn btn--ghost" onClick={signOut}>
                 Log out

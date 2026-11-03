@@ -15,6 +15,7 @@ A fun project for a few friends.
 - **Artist mode**: pick up to 5 artists and get a shuffled, interleaved mix of only their songs.
 - **Recap prediction**: a live guess at your year-end top 5 artists and songs, with daily rank changes, a chart of where each artist's score comes from, and a one-click way to push an artist into your top 5.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
+- **Sync across devices**: log in on your phone and computer with the same Spotify account and your settings stay in step within seconds. Only one device's autopilot plays at a time.
 - Keeps the screen awake while autopilot is on, recovers by itself if the player drops, and can open at Windows sign-in.
 
 ## Screenshots
@@ -54,6 +55,8 @@ You need Node 22+ and Spotify Premium (the browser player requires it).
 2. In **Settings → Environment Variables**, add `VITE_SPOTIFY_CLIENT_ID`, and `VITE_SPOTIFY_REDIRECT_URI` set to your main address (e.g. `https://larpify.vercel.app/`). The second one sends visitors on Vercel's one-off deployment links to the main address, where login works.
 3. Deploy, then add the production URL (with trailing slash) as a Redirect URI in the Spotify dashboard.
 
+**Optional: sync between devices.** In Vercel, open **Storage → Create Database → Upstash (Redis)**, pick the free plan and connect it to this project, then redeploy. Vercel adds the `KV_REST_API_URL` / `KV_REST_API_TOKEN` variables for you; never put them in the repo. Without it the app works the same, with settings kept per browser. The sync function (`api/settings.ts`) checks each caller with Spotify and stores only the settings shown in the app, keyed by Spotify user id. It never stores Spotify tokens.
+
 Preview deployments get random URLs that Spotify won't accept, so test login on the production URL (or add a fixed preview domain to the dashboard).
 
 ## Keeping it running
@@ -92,7 +95,7 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 ## Security
 
 - **No secrets anywhere.** PKCE means there is no client secret. The Client ID is a public identifier, but it still lives in `.env.local` (git-ignored) and Vercel's env settings, not in the code.
-- **Tokens stay in your browser.** There is no backend. Access and refresh tokens are kept in the tab's local storage and removed on log out.
+- **Tokens stay in your browser.** Access and refresh tokens are kept in the tab's local storage and removed on log out. The optional sync function receives the access token only to ask Spotify who you are, and doesn't store it.
 - **Minimal scopes**: only playback, profile and reading your playlists. Larpify can't modify your library or playlists.
 - **Locked-down page**: a Content Security Policy only allows scripts from this site and Spotify's player, plus headers that stop other sites from framing it.
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.

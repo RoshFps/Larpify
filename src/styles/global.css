@@ -1638,3 +1638,23 @@ img {
     white-space: normal;
   }
 }
+
+.sync-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(30 215 96 / 0.15);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.sync-chip--offline {
+  background: rgb(255 164 43 / 0.15);
+  color: var(--warning);
+}
+
+@media (max-width: 480px) {
+  .sync-chip {
+    display: none;
+  }
+}

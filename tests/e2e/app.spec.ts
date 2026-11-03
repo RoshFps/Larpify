@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DEVICE_ID, mockSpotify, playingOn, signIn, type World } from './mockSpotify';
+import { DEVICE_ID, mockSpotify, mockSyncServer, playingOn, signIn, type World } from './mockSpotify';
 
 const playlistSettings = {
   enabled: true,
@@ -60,7 +60,7 @@ test('autopilot waits while you listen, takes over when idle, and backs off', as
 
   await page.clock.fastForward(61_000);
   await expect(page.getByText('Playing on this tab')).toBeVisible();
-  expect(world.lastPlayRequest).toEqual({ context_uri: 'spotify:playlist:pl0' });
+  await expect.poll(() => world.lastPlayRequest).toEqual({ context_uri: 'spotify:playlist:pl0' });
 
   // You pick your phone back up: the tab's player goes quiet and autopilot steps aside.
   world.playback = playingOn('phone', "Roshan's iPhone");
@@ -171,4 +171,40 @@ test('recap asks for the extra permission on older sessions', async ({ page, con
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Main' }).locator('visible=true').getByRole('button', { name: 'Recap' }).click();
   await expect(page.getByRole('button', { name: 'Allow access' })).toBeVisible();
+});
+
+test('settings changed on one device show up on the other', async ({ browser }) => {
+  const world: World = { playback: null, lastPlayRequest: null };
+  const server = { doc: null as unknown };
+
+  const openDevice = async () => {
+    const context = await browser.newContext();
+    await mockSpotify(context, world);
+    await mockSyncServer(context, server);
+    await signIn(context, playlistSettings);
+    const page = await context.newPage();
+    await page.clock.install();
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    return page;
+  };
+
+  const pc = await openDevice();
+  const phone = await openDevice();
+  const idleSetting = (page: typeof pc, minutes: number) =>
+    page.getByRole('radiogroup', { name: 'Idle time before autopilot starts' }).getByRole('radio', { name: `${minutes} min` });
+
+  await idleSetting(pc, 20).click();
+  await pc.clock.fastForward(2_000); // push is debounced
+  await expect.poll(() => (server.doc as { settings?: { idleMinutes?: number } })?.settings?.idleMinutes).toBe(20);
+
+  await phone.clock.fastForward(11_000); // next pull
+  await expect(idleSetting(phone, 20)).toHaveAttribute('aria-checked', 'true');
+
+  // Volume is per device and must not travel.
+  const phoneVolume = await phone.evaluate(() => JSON.parse(localStorage.getItem('larpify.settings')!).volume);
+  expect(phoneVolume).toBe(0.6);
+
+  await pc.context().close();
+  await phone.context().close();
 });

@@ -136,6 +136,23 @@ export async function mockSpotify(context: BrowserContext, world: World): Promis
   });
 }
 
+/** Stands in for /api/settings. Pass the same store to two contexts to act as two devices. */
+export async function mockSyncServer(context: BrowserContext, store: { doc: unknown }): Promise<void> {
+  await context.route('**/api/settings', async (route) => {
+    const request = route.request();
+    if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}`) return route.fulfill({ status: 401 });
+    if (request.method() === 'GET') {
+      return store.doc
+        ? route.fulfill({ contentType: 'application/json', body: JSON.stringify(store.doc) })
+        : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
+    const incoming = request.postDataJSON() as { updatedAt: number };
+    const current = store.doc as { updatedAt: number } | null;
+    if (!current || incoming.updatedAt > current.updatedAt) store.doc = incoming;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(store.doc) });
+  });
+}
+
 /** Signs the browser in with fake tokens, once per test (not again on reload). */
 export async function signIn(context: BrowserContext, settings?: object, expiresInMs = 3_600_000): Promise<void> {
   await context.addInitScript(
