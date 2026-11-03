@@ -4,14 +4,30 @@ Keeps your Spotify going while you're away. Larpify runs a Spotify player inside
 
 A fun project for a few friends. Read [Before you use it](#before-you-use-it).
 
+![Home screen with autopilot playing on the tab](docs/screenshots/home.png)
+
 ## Features
 
 - Log in with Spotify's official OAuth (Authorization Code + PKCE). No password or client secret ever touches the app.
 - **Autopilot**: starts after 1–30 minutes of inactivity and hands control back as soon as you play anything elsewhere.
+- **Quiet hours**: no autopilot overnight (2 AM to 8 AM by default), so your listening looks like a real day.
 - **Playlist mode**: shuffle one of your playlists.
 - **Artist mode**: pick up to 5 artists and get a shuffled, interleaved mix of only their songs.
+- **Recap prediction**: a live guess at your year-end top 5 artists and songs, with daily rank changes, a chart of where each artist's score comes from, and a one-click way to push an artist into your top 5.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
-- A counter of how long autopilot has played today.
+- Keeps the screen awake while autopilot is on, recovers by itself if the player drops, and can open at Windows sign-in.
+
+## Screenshots
+
+Taken with sample data (`npm run screenshots` regenerates them).
+
+| Recap prediction | Artist mode |
+| --- | --- |
+| ![Predicted top artists and songs with rank changes, and a chart of each artist's score by period](docs/screenshots/recap.png) | ![Searching artists and picking two for artist mode](docs/screenshots/artists.png) |
+
+| Login | On a phone | Recap on a phone |
+| --- | --- | --- |
+| ![Login screen](docs/screenshots/login.png) | ![Home screen on a phone with the mini player](docs/screenshots/phone-home.png) | ![Recap page on a phone](docs/screenshots/phone-recap.png) |
 
 ## Setup
 
@@ -35,7 +51,7 @@ You need Node 22+ and Spotify Premium (the browser player requires it).
 ## Deploying to Vercel
 
 1. Import the GitHub repo in Vercel. It detects Vite; `vercel.json` sets the build and security headers.
-2. In **Settings → Environment Variables**, add `VITE_SPOTIFY_CLIENT_ID`.
+2. In **Settings → Environment Variables**, add `VITE_SPOTIFY_CLIENT_ID`, and `VITE_SPOTIFY_REDIRECT_URI` set to your main address (e.g. `https://larpify.vercel.app/`). The second one sends visitors on Vercel's one-off deployment links to the main address, where login works.
 3. Deploy, then add the production URL (with trailing slash) as a Redirect URI in the Spotify dashboard.
 
 Preview deployments get random URLs that Spotify won't accept, so test login on the production URL (or add a fixed preview domain to the dashboard).
@@ -67,8 +83,9 @@ Larpify can't run without an open browser tab: Spotify's player needs a real bro
 | `npm run dev`      | Dev server on http://127.0.0.1:5173                       |
 | `npm run build`    | Type-check and build to `dist/`                           |
 | `npm run lint`     | ESLint                                                    |
-| `npm test`         | Unit tests (autopilot logic, artist mix, PKCE)            |
+| `npm test`         | Unit tests (autopilot, quiet hours, recap model, PKCE)    |
 | `npm run test:e2e` | Browser tests on desktop and phone sizes, Spotify mocked  |
+| `npm run screenshots` | Regenerate the README screenshots from sample data     |
 
 GitHub Actions runs all of these on every push, plus a [gitleaks](https://github.com/gitleaks/gitleaks) scan of the full history.
 
