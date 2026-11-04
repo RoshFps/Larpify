@@ -6,10 +6,12 @@ import { Cover } from '../components/Cover';
 import { formatDuration, pickImage } from '../lib/format';
 import type { SourceItem } from '../settings/useSettings';
 import { movement, type Prediction } from './predict';
+import { catchUp } from './catchUp';
 import { RecapChart } from './RecapChart';
+import { readJson, writeJson } from '../lib/storage';
 import { useRecap, type Recap } from './useRecap';
 
-const TOP = 5;
+const TOP = 10;
 
 interface RecapViewProps {
   onTargetArtist: (artist: SourceItem) => void;
@@ -61,7 +63,7 @@ function RecapContent({ recap, onTargetArtist }: { recap: Recap } & RecapViewPro
   return (
     <>
       <p className="recap-updated">
-        <span className="live-dot" aria-hidden="true" /> Live · updated {updated}
+        <span className="live-dot" aria-hidden="true" /> Updated once a day · last at {updated}
         {recap.previous ? ' · arrows show changes since your last visit' : ''}
       </p>
 
@@ -81,6 +83,8 @@ function RecapContent({ recap, onTargetArtist }: { recap: Recap } & RecapViewPro
         />
       </div>
 
+      <RecentNumberOnes recap={recap} />
+      <Predictor recap={recap} />
       <RecapChart artists={recap.artists} />
       <TargetArtist artists={recap.artists} onTargetArtist={onTargetArtist} />
       <AutopilotContribution />
@@ -139,12 +143,12 @@ function TargetArtist({ artists, onTargetArtist }: { artists: Prediction<Artist>
   const contenders = artists.slice(TOP, 20);
   const [targetId, setTargetId] = useState<string | null>(contenders[0]?.item.id ?? null);
   const target = artists.find((p) => p.item.id === targetId) ?? null;
-  const fifth = artists[TOP - 1];
+  const last = artists[TOP - 1];
 
-  if (contenders.length === 0 || !fifth) return null;
+  if (contenders.length === 0 || !last) return null;
 
   const ahead = target ? artists.slice(TOP - 1, target.rank - 1).map((p) => p.item.name) : [];
-  const gapPercent = target ? Math.round(((fifth.score - target.score) / fifth.score) * 100) : 0;
+  const gapPercent = target ? Math.round(((last.score - target.score) / last.score) * 100) : 0;
 
   return (
     <section className="target-card" aria-labelledby="target-title">
@@ -170,7 +174,7 @@ function TargetArtist({ artists, onTargetArtist }: { artists: Prediction<Artist>
         <div className="target-card__plan">
           <p>
             <strong>{target.item.name}</strong> is predicted at <strong>#{target.rank}</strong>, about {gapPercent}%
-            behind #{TOP} ({fifth.item.name}). To break in they need to pass {formatList(ahead)}.
+            behind #{TOP} ({last.item.name}). To break in they need to pass {formatList(ahead)}.
           </p>
           <p className="setting__hint">
             Your 4-week list reacts fastest. A few days of artist mode with only them usually shows up there first,
@@ -223,6 +227,144 @@ function AutopilotContribution() {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+function RecentNumberOnes({ recap }: { recap: Recap }) {
+  const { recent, history } = recap;
+  const rows: { label: string; artist: string | undefined; track: string | undefined; note?: string }[] = [
+    { label: 'Last 4 weeks', artist: recent.artist4w?.name, track: recent.track4w?.name },
+    {
+      label: 'Last 3 months',
+      artist: history.artist?.name,
+      track: history.track?.name,
+      note:
+        history.days >= 7
+          ? `#1 on the most days Larpify checked (${history.days} days)`
+          : 'Builds up as Larpify checks once a day. Spotify has no 3-month list.',
+    },
+    { label: 'Last 6 months', artist: recent.artist6m?.name, track: recent.track6m?.name },
+  ];
+  return (
+    <section className="target-card" aria-labelledby="recent-title">
+      <h2 id="recent-title" className="section-title">
+        Your #1 lately
+      </h2>
+      <dl className="number-ones">
+        {rows.map((row) => (
+          <div key={row.label} className="number-ones__row">
+            <dt>{row.label}</dt>
+            <dd>
+              <strong>{row.artist ?? '—'}</strong> · {row.track ?? '—'}
+              {row.note && <span className="setting__hint"> {row.note}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+const DAILY_KEY = 'larpify.dailyMinutes';
+const NEW_PICK = 'new';
+
+function formatMinutes(minutes: number): string {
+  if (minutes < 1) return 'under a minute';
+  if (minutes < 90) return `${Math.round(minutes)} min`;
+  return `${(minutes / 60).toFixed(1)} h`;
+}
+
+function Predictor({ recap }: { recap: Recap }) {
+  const [daily, setDaily] = useState(() => readJson<number>(DAILY_KEY) ?? 120);
+  const [kind, setKind] = useState<'artist' | 'track'>('artist');
+  const list = kind === 'artist' ? recap.artists : recap.tracks;
+  const contenders = list.slice(TOP);
+  const [pick, setPick] = useState<string>(NEW_PICK);
+  const chosen = list.find((p) => p.item.id === pick) ?? null;
+  const leader = list[0];
+  const [now] = useState(() => Date.now());
+  const result = useMemo(() => catchUp(chosen?.rank ?? null, daily, now), [chosen, daily, now]);
+  if (!leader) return null;
+
+  const songMinutes = kind === 'track' && chosen ? (chosen.item as Track).duration_ms / 60_000 : 3.5;
+  const playsPerDay = Math.ceil(result.minutesPerDay / songMinutes);
+  const realistic = result.minutesPerDay <= 16 * 60;
+  const thing = kind === 'artist' ? 'artist' : 'song';
+
+  return (
+    <section className="target-card" aria-labelledby="predictor-title">
+      <h2 id="predictor-title" className="section-title">
+        Make a new {thing} your #1
+      </h2>
+      <p className="setting__hint">
+        Pick someone outside your top {TOP}. This estimates how much extra listening they need to pass{' '}
+        <strong>{leader.item.name}</strong> before Spotify stops counting (around 15 November).
+      </p>
+
+      <div className="pills" role="radiogroup" aria-label="Predict for">
+        {(['artist', 'track'] as const).map((k) => (
+          <button
+            key={k}
+            role="radio"
+            aria-checked={kind === k}
+            className={`pill ${kind === k ? 'is-active' : ''}`}
+            onClick={() => {
+              setKind(k);
+              setPick(NEW_PICK);
+            }}
+          >
+            {k === 'artist' ? 'Artists' : 'Songs'}
+          </button>
+        ))}
+      </div>
+
+      <label className="field">
+        <span className="field__label">Who</span>
+        <select value={pick} onChange={(e) => setPick(e.target.value)}>
+          <option value={NEW_PICK}>Someone new (not in your top 50)</option>
+          {contenders.map(({ item, rank }) => (
+            <option key={item.id} value={item.id}>
+              #{rank} {item.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="field">
+        <span className="field__label">How much you listen on a normal day (minutes)</span>
+        <input
+          type="number"
+          min={10}
+          max={1440}
+          step={10}
+          value={daily}
+          onChange={(e) => {
+            const next = Math.min(1440, Math.max(10, Number(e.target.value) || 120));
+            setDaily(next);
+            writeJson(DAILY_KEY, next);
+          }}
+        />
+      </label>
+
+      <div className="target-card__plan" role="status">
+        <p>
+          About <strong>{formatMinutes(result.minutesPerDay)} a day</strong> of {chosen ? chosen.item.name : 'them'} (
+          {playsPerDay} plays) for the next {Math.round(result.daysLeft)} days, on top of your usual listening, to
+          finish {result.year} with them at #1.
+        </p>
+        {!realistic && (
+          <p className="setting__hint">
+            That's more than a day can hold this close to the cutoff. Starting fresh in {result.year + 1} would take
+            about {formatMinutes(catchUp(null, daily, new Date(result.year + 1, 0, 1).getTime()).minutesPerDay)} a day.
+          </p>
+        )}
+        <p className="setting__hint">
+          How it's worked out: Spotify doesn't share play counts, so this assumes your #1 gets about twice the plays
+          of #2, three times #3 and so on, which is how most people's listening looks. Your #1 is estimated at{' '}
+          {formatMinutes(result.leaderMinutes)} by the cutoff.
+        </p>
+      </div>
     </section>
   );
 }

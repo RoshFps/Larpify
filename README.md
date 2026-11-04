@@ -13,7 +13,7 @@ A fun project for a few friends.
 - **Quiet hours**: no autopilot overnight (2 AM to 8 AM by default), so your listening looks like a real day.
 - **Playlist mode**: shuffle one of your playlists.
 - **Artist mode**: pick up to 5 artists and get a shuffled, interleaved mix of only their songs.
-- **Recap prediction**: a live guess at your year-end top 5 artists and songs, with daily rank changes, a chart of where each artist's score comes from, and a one-click way to push an artist into your top 5.
+- **Recap prediction**: a guess at your year-end top 10 artists and songs, refreshed once a day, with rank changes, your #1 over the last 4 weeks, 3 months and 6 months, a chart of where each artist's score comes from, and a predictor for how many minutes a day it would take to make a new artist or song your #1.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
 - **Sync across devices**: log in on your phone and computer with the same Spotify account and your settings stay in step within seconds. Only one device's autopilot plays at a time.
 - **Ask to join**: friends who aren't on your Spotify app's user list yet can request access from the login page, and the request lands in your email.

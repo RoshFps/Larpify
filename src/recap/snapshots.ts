@@ -4,12 +4,16 @@ import { readJson, writeJson } from '../lib/storage';
 // how things moved since the last day you looked.
 
 const KEY = 'larpify.recapSnapshots';
-const KEEP_DAYS = 14;
+/** Enough for a 3-month #1 history. Each entry is a few KB at most. */
+const KEEP_DAYS = 92;
 
 export interface Snapshot {
   day: string;
   artists: string[];
   tracks: string[];
+  /** Names of that day's 4-week #1 artist and song (older snapshots lack them). */
+  topArtist?: string;
+  topTrack?: string;
 }
 
 export function dayKey(now: number): string {
@@ -36,4 +40,25 @@ export function loadSnapshots(): Snapshot[] {
 
 export function saveSnapshots(snapshots: Snapshot[]): void {
   writeJson(KEY, snapshots);
+}
+
+const HISTORY_DAYS = 90;
+
+function mostFrequent(names: (string | undefined)[]): { name: string; days: number } | null {
+  const counts = new Map<string, number>();
+  for (const name of names) if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+  let best: { name: string; days: number } | null = null;
+  for (const [name, days] of counts) if (!best || days > best.days) best = { name, days };
+  return best;
+}
+
+/** Which artist and song were #1 on the most days over the last 3 months. */
+export function topHistory(snapshots: readonly Snapshot[], now: number) {
+  const since = dayKey(now - HISTORY_DAYS * 86_400_000);
+  const recent = snapshots.filter((s) => s.day >= since && s.topArtist);
+  return {
+    artist: mostFrequent(recent.map((s) => s.topArtist)),
+    track: mostFrequent(recent.map((s) => s.topTrack)),
+    days: recent.length,
+  };
 }

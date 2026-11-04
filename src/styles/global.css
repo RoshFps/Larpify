@@ -1692,7 +1692,8 @@ img {
   font-weight: 700;
 }
 
-.field input {
+.field input,
+.field select {
   height: 44px;
   padding: 0 14px;
   border: 1px solid var(--text-muted);
@@ -1702,11 +1703,13 @@ img {
   font: inherit;
 }
 
-.field input:hover {
+.field input:hover,
+.field select:hover {
   border-color: var(--text);
 }
 
-.field input:focus {
+.field input:focus,
+.field select:focus {
   outline: none;
   border-color: var(--text);
   box-shadow: 0 0 0 1px var(--text);
@@ -1810,3 +1813,12 @@ img {
 .view-subtitle a {
   color: var(--text);
 }
+
+.number-ones { display: grid; gap: 8px; margin: 12px 0 0; }
+.number-ones__row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: baseline; }
+.number-ones dt { color: var(--text-subdued, #b3b3b3); font-size: 0.875rem; }
+.number-ones dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.number-ones .setting__hint { display: block; margin-top: 2px; }
+@media (max-width: 480px) { .number-ones__row { grid-template-columns: 1fr; gap: 2px; } }
+.target-card select, .target-card input[type='number'] { width: 100%; max-width: 360px; }
+.target-card .field { margin-top: 12px; }

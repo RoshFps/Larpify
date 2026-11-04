@@ -142,7 +142,7 @@ test('quiet hours keep autopilot from starting overnight', async ({ page, contex
   expect(world.lastPlayRequest).toBeNull();
 });
 
-test('recap predicts a top 5 and can target an artist with autopilot', async ({ page, context }) => {
+test('recap predicts a top 10 and can target an artist with autopilot', async ({ page, context }) => {
   const errors = collectErrors(page);
   await mockSpotify(context, { playback: null, lastPlayRequest: null });
   await signIn(context, playlistSettings);
@@ -152,23 +152,37 @@ test('recap predicts a top 5 and can target an artist with autopilot', async ({ 
   await nav.getByRole('button', { name: 'Recap' }).click();
 
   const artists = page.getByRole('region', { name: 'Top artists' }).getByRole('listitem');
-  await expect(artists).toHaveCount(5);
+  await expect(artists).toHaveCount(10);
   // FKA twigs leads the 6-month and 4-week lists, which outweigh Frank Ocean's 12-month lead.
   await expect(artists.first()).toContainText('FKA twigs');
-  await expect(page.getByRole('region', { name: 'Top songs' }).getByRole('listitem')).toHaveCount(5);
+  await expect(page.getByRole('region', { name: 'Top songs' }).getByRole('listitem')).toHaveCount(10);
 
   // The chart explains a ranking on hover/focus.
   await page.getByRole('button', { name: /^#1 FKA twigs/ }).focus();
   await expect(page.getByRole('tooltip')).toContainText('6 months: #1');
 
-  await page.getByRole('radio', { name: /Bon Iver/ }).click();
-  await expect(page.getByText(/Bon Iver.*is predicted at/)).toBeVisible();
-  await page.getByRole('button', { name: 'Play only Bon Iver on autopilot' }).click();
+  // #1 lately: Spotify's 4-week and 6-month leaders.
+  const lately = page.getByRole('region', { name: 'Your #1 lately' });
+  await expect(lately).toContainText('Last 4 weeks');
+  await expect(lately).toContainText('FKA twigs');
+
+  // Predictor: someone outside the top 10 needs more than someone already close.
+  const predictor = page.getByRole('region', { name: 'Make a new artist your #1' });
+  const estimate = predictor.getByRole('status');
+  await expect(estimate).toContainText('a day');
+  await predictor.getByLabel('Who').selectOption({ label: '#13 Arca' });
+  await expect(estimate).toContainText('Arca');
+  await predictor.getByRole('radio', { name: 'Songs' }).click();
+  await expect(page.getByRole('region', { name: 'Make a new song your #1' })).toBeVisible();
+
+  await page.getByRole('radio', { name: /#13 Arca/ }).click();
+  await expect(page.getByText(/Arca.*is predicted at/)).toBeVisible();
+  await page.getByRole('button', { name: 'Play only Arca on autopilot' }).click();
 
   await expect(page.getByText('Only their songs will play')).toBeVisible();
   const settings = await page.evaluate(() => JSON.parse(localStorage.getItem('larpify.settings')!));
   expect(settings.source).toBe('artists');
-  expect(settings.artists.map((a: { name: string }) => a.name)).toEqual(['Bon Iver']);
+  expect(settings.artists.map((a: { name: string }) => a.name)).toEqual(['Arca']);
   expect(errors).toEqual([]);
 });
 
@@ -324,4 +338,25 @@ test('three tabs on one account start playback only once', async ({ browser }) =
   expect(world.playCount).toBe(1);
 
   await Promise.all(tabs.map((tab) => tab.context().close()));
+});
+
+test('recap asks Spotify for top lists only once a day', async ({ page, context }) => {
+  const world: World = { playback: null, lastPlayRequest: null };
+  const topCalls: string[] = [];
+  context.on('request', (r) => {
+    if (r.url().includes('/v1/me/top/')) topCalls.push(r.url());
+  });
+  await mockSpotify(context, world);
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await openNav(page, 'Recap');
+  await expect(page.getByRole('region', { name: 'Top artists' })).toBeVisible();
+  expect(topCalls).toHaveLength(6);
+
+  await page.reload();
+  await openNav(page, 'Recap');
+  await expect(page.getByRole('region', { name: 'Top artists' })).toBeVisible();
+  await openNav(page, 'Home');
+  await openNav(page, 'Recap');
+  expect(topCalls).toHaveLength(6);
 });

@@ -25,7 +25,7 @@ export const artists = ['Frank Ocean', 'Fred again..', 'FKA twigs'].map((name, i
   images: cover(200 + i * 40),
 }));
 
-const extraArtists = ['Mitski', 'Tame Impala', 'SZA', 'Bon Iver', 'Phoebe Bridgers', 'Kendrick Lamar', 'Clairo', 'Steve Lacy'].map(
+const extraArtists = ['Mitski', 'Tame Impala', 'SZA', 'Bon Iver', 'Phoebe Bridgers', 'Kendrick Lamar', 'Clairo', 'Steve Lacy', 'Bon Iver Live', 'Arca', 'Japanese Breakfast', 'Beach House', 'Rosalía'].map(
   (name, i) => ({ id: `ex${i}`, uri: `spotify:artist:ex${i}`, name, images: cover(100 + i * 25) }),
 );
 
