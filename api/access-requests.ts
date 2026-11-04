@@ -68,7 +68,16 @@ async function list(): Promise<Response> {
   return json({ requests });
 }
 
+// Lets a logged-in person see why the owner page isn't showing. Reveals only
+// their own Spotify id and whether the setup is complete, never anyone else's.
+async function check(request: Request): Promise<Response> {
+  const id = await spotifyUserId(request);
+  if (id === null) return json({ error: 'Log in first.' }, 401);
+  return json({ storage: storageConfigured, adminSet: adminIds.length > 0, yourId: id, isOwner: adminIds.includes(id) });
+}
+
 async function handle(request: Request): Promise<Response> {
+  if (request.method === 'GET' && new URL(request.url).searchParams.has('check')) return check(request);
   if (!storageConfigured) return json({ error: 'Requests are not set up on this site.' }, 501);
   if (request.method === 'POST') return submit(request);
 

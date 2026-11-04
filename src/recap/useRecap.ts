@@ -19,6 +19,25 @@ export interface Recap {
   updatedAt: number;
 }
 
+const CACHE_KEY = 'larpify.recapCache';
+
+function readCache(): Recap | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Recap) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(recap: Recap): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(recap));
+  } catch {
+    // Storage full or blocked: the cache is only a convenience.
+  }
+}
+
 export type RecapState =
   | { status: 'loading' }
   | { status: 'needs-permission' }
@@ -26,11 +45,17 @@ export type RecapState =
   | { status: 'ready'; recap: Recap };
 
 async function fetchRecap(): Promise<RecapState> {
+  const cached = readCache();
+  // Top lists only change about daily, so a recent copy saves calls (and Spotify's rate limit).
+  if (cached && Date.now() - cached.updatedAt < REFRESH_MS) return { status: 'ready', recap: cached };
   try {
-    const [artistLists, trackLists] = await Promise.all([
-      Promise.all(RANGES.map(getTopArtists)),
-      Promise.all(RANGES.map(getTopTracks)),
-    ]);
+    // One at a time: six at once is what trips Spotify's rate limit.
+    const artistLists: Artist[][] = [];
+    const trackLists: Track[][] = [];
+    for (const range of RANGES) {
+      artistLists.push(await getTopArtists(range));
+      trackLists.push(await getTopTracks(range));
+    }
     const artists = blendRankings(RANGES.map((range, i) => ({ items: artistLists[i]!, weight: RANGE_WEIGHTS[range] })));
     const tracks = blendRankings(RANGES.map((range, i) => ({ items: trackLists[i]!, weight: RANGE_WEIGHTS[range] })));
 
@@ -44,8 +69,16 @@ async function fetchRecap(): Promise<RecapState> {
         tracks: tracks.map((p) => p.item.id),
       }),
     );
-    return { status: 'ready', recap: { artists, tracks, previous, updatedAt: now } };
+    const recap = { artists, tracks, previous, updatedAt: now };
+    writeCache(recap);
+    return { status: 'ready', recap };
   } catch (err) {
+    // Rate limited: keep showing the last good result rather than an error.
+    if (err instanceof SpotifyApiError && err.status === 429) {
+      return cached
+        ? { status: 'ready', recap: cached }
+        : { status: 'error', message: 'Spotify is busy right now. Try again in a minute.' };
+    }
     // Sessions from before this feature lack the user-top-read scope.
     if (err instanceof SpotifyApiError && err.status === 403) return { status: 'needs-permission' };
     return { status: 'error', message: err instanceof Error ? err.message : 'Could not load your stats.' };

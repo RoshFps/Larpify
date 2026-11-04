@@ -43,3 +43,20 @@ export async function removeAccessRequest(email: string): Promise<void> {
   });
   if (!res.ok) throw await errorFrom(res);
 }
+
+export interface SetupCheck {
+  storage: boolean;
+  adminSet: boolean;
+  yourId: string;
+  isOwner: boolean;
+}
+
+/** Explains why the Requests page is or isn't showing for this account. */
+export async function checkAccessSetup(): Promise<SetupCheck | null> {
+  const res = await fetch(`${ENDPOINT}?check=1`, {
+    headers: { Authorization: `Bearer ${await getAccessToken()}` },
+    cache: 'no-store',
+  });
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  return res.ok && isJson ? ((await res.json()) as SetupCheck) : null;
+}

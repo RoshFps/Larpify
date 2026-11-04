@@ -5,6 +5,7 @@ import { getMe, getMyPlaylists } from './api/spotify';
 import { listAccessRequests } from './access/client';
 import { NotAllowedScreen } from './access/NotAllowedScreen';
 import { RequestsView } from './access/RequestsView';
+import { SetupCheckView } from './access/SetupCheckView';
 import type { AccessRequest } from './access/shape';
 import type { Playlist, UserProfile } from './api/types';
 import { useAutopilot } from './autopilot/useAutopilot';
@@ -160,6 +161,7 @@ function SignedInApp() {
             onRemoved={(email) => setRequests((list) => list?.filter((r) => r.email !== email) ?? null)}
           />
         )}
+        {requests === null && window.location.hash === '#requests' && <SetupCheckView />}
         {view === 'recap' && (
           <RecapView
             onTargetArtist={(artist) => {

@@ -96,4 +96,13 @@ describe('/api/access-requests', () => {
     const api = await import('../../api/access-requests');
     expect((await api.POST(post({ name: 'S', email: 'a@b.co', pad: 'x'.repeat(3000) }))).status).toBe(413);
   });
+
+  it('setup check tells a logged-in person only their own id and what is missing', async () => {
+    const api = await import('../../api/access-requests');
+    const friend = new Request('https://x/api/access-requests?check=1', { headers: { authorization: 'Bearer friend-token' } });
+    const body = await (await api.GET(friend)).json();
+    expect(body).toEqual({ storage: true, adminSet: true, yourId: 'friend', isOwner: false });
+    const anon = new Request('https://x/api/access-requests?check=1');
+    expect((await api.GET(anon)).status).toBe(401);
+  });
 });
