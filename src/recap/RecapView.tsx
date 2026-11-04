@@ -288,8 +288,10 @@ function Predictor({ recap }: { recap: Recap }) {
   if (!leader) return null;
 
   const songMinutes = kind === 'track' && chosen ? (chosen.item as Track).duration_ms / 60_000 : 3.5;
+  const playsPerDay = Math.ceil(result.minutesPerDay / songMinutes);
   const totalMinutes = result.minutesPerDay * result.daysLeft;
   const totalPlays = Math.ceil(totalMinutes / songMinutes);
+  const realistic = result.minutesPerDay <= 16 * 60;
   const thing = kind === 'artist' ? 'artist' : 'song';
 
   return (
@@ -298,8 +300,8 @@ function Predictor({ recap }: { recap: Recap }) {
         Make a new {thing} your #1
       </h2>
       <p className="setting__hint">
-        Pick someone outside your top {TOP} to see how much you'd need to play them to pass{' '}
-        <strong>{leader.item.name}</strong>.
+        Pick someone outside your top {TOP}. This estimates how much extra listening they need to pass{' '}
+        <strong>{leader.item.name}</strong> before Spotify stops counting (around 15 November).
       </p>
 
       <div className="pills" role="radiogroup" aria-label="Predict for">
@@ -349,11 +351,25 @@ function Predictor({ recap }: { recap: Recap }) {
 
       <div className="target-card__plan" role="status">
         <p>
-          Listen to {chosen ? <strong>{chosen.item.name}</strong> : 'them'} for about{' '}
-          <strong>{formatMinutes(totalMinutes)}</strong> in total, roughly <strong>{totalPlays} songs</strong>, to rank
-          #1.
+          In total: listen to {chosen ? <strong>{chosen.item.name}</strong> : 'them'} for about{' '}
+          <strong>{formatMinutes(totalMinutes)}</strong>, roughly <strong>{totalPlays} songs</strong>, to rank #1.
         </p>
-        <p className="setting__hint">An estimate: Spotify doesn't share play counts.</p>
+        <p>
+          About <strong>{formatMinutes(result.minutesPerDay)} a day</strong> of {chosen ? chosen.item.name : 'them'} (
+          {playsPerDay} plays) for the next {Math.round(result.daysLeft)} days, on top of your usual listening, to
+          finish {result.year} with them at #1.
+        </p>
+        {!realistic && (
+          <p className="setting__hint">
+            That's more than a day can hold this close to the cutoff. Starting fresh in {result.year + 1} would take
+            about {formatMinutes(catchUp(null, daily, new Date(result.year + 1, 0, 1).getTime()).minutesPerDay)} a day.
+          </p>
+        )}
+        <p className="setting__hint">
+          How it's worked out: Spotify doesn't share play counts, so this assumes your #1 gets about twice the plays
+          of #2, three times #3 and so on, which is how most people's listening looks. Your #1 is estimated at{' '}
+          {formatMinutes(result.leaderMinutes)} by the cutoff.
+        </p>
       </div>
     </section>
   );
