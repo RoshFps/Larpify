@@ -169,7 +169,7 @@ test('recap predicts a top 10 and can target an artist with autopilot', async ({
   // Predictor: someone outside the top 10 needs more than someone already close.
   const predictor = page.getByRole('region', { name: 'Make a new artist your #1' });
   const estimate = predictor.getByRole('status');
-  await expect(estimate).toContainText('a day');
+  await expect(estimate).toContainText('songs');
   await predictor.getByLabel('Who').selectOption({ label: '#13 Arca' });
   await expect(estimate).toContainText('Arca');
   await predictor.getByRole('radio', { name: 'Songs' }).click();
