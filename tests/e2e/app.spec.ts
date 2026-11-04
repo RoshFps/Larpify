@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DEVICE_ID, mockAccessRequests, mockSpotify, mockSyncServer, playingOn, signIn, type AccessStore, type World } from './mockSpotify';
+import { DEVICE_ID, mockAccessForm, mockSpotify, mockSyncServer, playingOn, signIn, type World } from './mockSpotify';
 
 const playlistSettings = {
   enabled: true,
@@ -11,6 +11,10 @@ const playlistSettings = {
   // Off by default in tests so results don't depend on what time CI runs.
   quietHours: { enabled: false, start: 2, end: 8 },
 };
+
+async function openNav(page: Page, label: string) {
+  await page.getByRole('navigation', { name: 'Main' }).locator('visible=true').getByRole('button', { name: label }).click();
+}
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -65,8 +69,11 @@ test('autopilot waits while you listen, takes over when idle, and backs off', as
   // You pick your phone back up: the tab's player goes quiet and autopilot steps aside.
   world.playback = playingOn('phone', "Roshan's iPhone");
   await page.evaluate(() => (window as unknown as { __player: { emit(e: string, d: null): void } }).__player.emit('player_state_changed', null));
-  await page.clock.fastForward(31_000);
-  await expect(page.getByText('You’re listening')).toBeVisible();
+  // A tick can still be in flight when the clock jumps, so allow a second poll.
+  await expect(async () => {
+    await page.clock.fastForward(31_000);
+    await expect(page.getByText('You’re listening')).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
   expect(errors).toEqual([]);
 });
 
@@ -198,7 +205,7 @@ test('settings changed on one device show up on the other', async ({ browser }) 
   await pc.clock.fastForward(2_000); // push is debounced
   await expect.poll(() => (server.doc as { settings?: { idleMinutes?: number } })?.settings?.idleMinutes).toBe(20);
 
-  await phone.clock.fastForward(11_000); // next pull
+  await phone.clock.fastForward(61_000); // next pull
   await expect(idleSetting(phone, 20)).toHaveAttribute('aria-checked', 'true');
 
   // Volume is per device and must not travel.
@@ -211,22 +218,38 @@ test('settings changed on one device show up on the other', async ({ browser }) 
 
 test('a friend can ask to be added from the login page', async ({ page, context }) => {
   const errors = collectErrors(page);
-  const store: AccessStore = { owner: false, requests: [] };
-  await mockAccessRequests(context, store);
+  const sent: Record<string, string>[] = [];
+  await mockAccessForm(context, sent);
   await page.goto('/');
   await page.getByRole('button', { name: 'New here? Ask to be added' }).click();
   await page.getByLabel('Your name').fill('  Priya ');
   await page.getByLabel('The email you use for Spotify').fill('Priya@Example.com');
   await page.getByRole('button', { name: 'Request access' }).click();
   await expect(page.getByText('Request sent.')).toBeVisible();
-  expect(store.requests).toEqual([{ name: 'Priya', email: 'priya@example.com', requestedAt: expect.any(Number) }]);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ access_key: 'e2e-form-key', name: 'Priya', spotify_email: 'priya@example.com' });
+  // The owner's address is never in the page: Web3Forms maps the key to it.
+  const html = await page.content();
+  expect(html).not.toMatch(/@gmail\.com/);
   expect(errors).toEqual([]);
 });
 
+test('bad emails are caught before anything is sent', async ({ page, context }) => {
+  const sent: Record<string, string>[] = [];
+  await mockAccessForm(context, sent);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New here? Ask to be added' }).click();
+  await page.getByLabel('Your name').fill('Sam');
+  await page.getByLabel('The email you use for Spotify').fill('sam@x');
+  await page.getByRole('button', { name: 'Request access' }).click();
+  await expect(page.getByRole('alert')).toContainText('email');
+  expect(sent).toEqual([]);
+});
+
 test('an account that is not on the list yet can ask from inside', async ({ page, context }) => {
-  const store: AccessStore = { owner: false, requests: [] };
+  const sent: Record<string, string>[] = [];
   await mockSpotify(context, { playback: null, lastPlayRequest: null, notAllowlisted: true });
-  await mockAccessRequests(context, store);
+  await mockAccessForm(context, sent);
   await signIn(context);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Almost in' })).toBeVisible();
@@ -234,59 +257,42 @@ test('an account that is not on the list yet can ask from inside', async ({ page
   await page.getByLabel('The email you use for Spotify').fill('sam@example.com');
   await page.getByRole('button', { name: 'Request access' }).click();
   await expect(page.getByText('Request sent.')).toBeVisible();
-  expect(store.requests.map((r) => r.email)).toEqual(['sam@example.com']);
+  expect(sent.map((r) => r.spotify_email)).toEqual(['sam@example.com']);
 
   await page.getByRole('button', { name: 'Log out' }).click();
   await expect(page.getByRole('button', { name: 'Log in with Spotify' })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('larpify.tokens'))).toBeNull();
 });
 
-test('friends never see the Requests page', async ({ page, context }) => {
-  await mockSpotify(context, { playback: null, lastPlayRequest: null });
-  await mockAccessRequests(context, { owner: false, requests: [{ name: 'Sam', email: 'sam@example.com', requestedAt: 1 }] });
+test('when Spotify rate limits, Recap keeps the last result and the app backs off', async ({ page, context }) => {
+  const world: World = { playback: null, lastPlayRequest: null };
+  await mockSpotify(context, world);
   await signIn(context, playlistSettings);
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Roshan');
-  await expect(page.getByRole('button', { name: /Requests/ })).toHaveCount(0);
-  await expect(page.getByText('sam@example.com')).toHaveCount(0);
-});
+  await openNav(page, 'Recap');
+  await expect(page.getByRole('region', { name: 'Top artists' })).toBeVisible();
 
-test('the owner sees requests, copies an email and marks it added', async ({ page, context }) => {
-  const errors = collectErrors(page);
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  const store: AccessStore = {
-    owner: true,
-    requests: [
-      { name: 'Priya', email: 'priya@example.com', requestedAt: Date.now() },
-      { name: 'Sam', email: 'sam@example.com', requestedAt: Date.now() - 86_400_000 },
-    ],
-  };
-  await mockSpotify(context, { playback: null, lastPlayRequest: null });
-  await mockAccessRequests(context, store);
-  await signIn(context, playlistSettings);
-  await page.goto('/');
+  // Spotify starts refusing everything for 10 minutes.
+  world.rateLimitSeconds = 600;
+  const before = world.requestCount ?? 0;
+  await page.evaluate(() => {
+    const cache = JSON.parse(localStorage.getItem('larpify.recapCache')!);
+    cache.updatedAt = 0; // force a refresh on the next visit
+    localStorage.setItem('larpify.recapCache', JSON.stringify(cache));
+  });
+  await page.reload();
+  await openNav(page, 'Recap');
+  await expect(page.getByRole('region', { name: 'Top artists' })).toBeVisible();
+  expect(world.requestCount).toBeGreaterThan(before);
 
-  const nav = page.getByRole('button', { name: /Requests/ });
-  await expect(nav).toContainText('2');
-  await nav.click();
-  await expect(page.getByRole('heading', { name: 'Access requests' })).toBeVisible();
-
-  const priya = page.getByRole('listitem').filter({ hasText: 'priya@example.com' });
-  await priya.getByRole('button', { name: 'Copy email' }).click();
-  await expect(priya.getByRole('button', { name: 'Copied' })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('priya@example.com');
-
-  await priya.getByRole('button', { name: 'Mark added' }).click();
-  await expect(priya).toHaveCount(0);
-  await expect(nav).toContainText('1');
-  await page
-    .getByRole('listitem')
-    .filter({ hasText: 'sam@example.com' })
-    .getByRole('button', { name: 'Mark added' })
-    .click();
-  await expect(page.getByText('No one is waiting.')).toBeVisible();
-  expect(store.requests).toEqual([]);
-  expect(errors).toEqual([]);
+  // Once Spotify has said "wait", reloading and clicking around sends nothing more.
+  await page.waitForTimeout(1_000); // let calls already in flight land
+  const afterRefusal = world.requestCount!;
+  await page.reload();
+  await openNav(page, 'Home');
+  await openNav(page, 'Recap');
+  await expect(page.getByRole('region', { name: 'Top artists' })).toBeVisible();
+  expect(world.requestCount).toBe(afterRefusal);
 });
 
 test('three tabs on one account start playback only once', async ({ browser }) => {

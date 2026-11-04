@@ -17,6 +17,6 @@ export default defineConfig({
     command: 'npm run build && npm run preview',
     url: 'http://127.0.0.1:4173/',
     reuseExistingServer: !process.env.CI,
-    env: { VITE_SPOTIFY_CLIENT_ID: 'e2e-test-client-id' },
+    env: { VITE_SPOTIFY_CLIENT_ID: 'e2e-test-client-id', VITE_ACCESS_FORM_KEY: 'e2e-form-key' },
   },
 });

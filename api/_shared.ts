@@ -22,14 +22,33 @@ export async function redis(command: (string | number)[]): Promise<unknown> {
   return ((await res.json()) as { result: unknown }).result;
 }
 
-/** Spotify user id for the request's bearer token, or null if Spotify doesn't accept it. */
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Long enough to cover a Spotify access token's 1 hour life without re-asking each sync. */
+const IDENTITY_TTL_S = 50 * 60;
+
+/**
+ * Spotify user id for the request's bearer token, or null if Spotify doesn't accept it.
+ * The answer is cached under a hash of the token (never the token itself), so
+ * syncing doesn't spend the app's shared Spotify rate limit on repeated /me calls.
+ */
 export async function spotifyUserId(request: Request): Promise<string | null> {
   const auth = request.headers.get('authorization');
-  if (!auth?.startsWith('Bearer ')) return null;
+  if (!auth?.startsWith('Bearer ') || auth.length > 2048) return null;
+  const cacheKey = storageConfigured ? `larpify:who:${await sha256(auth)}` : null;
+  if (cacheKey) {
+    const cached = await redis(['GET', cacheKey]);
+    if (typeof cached === 'string' && cached) return cached;
+  }
   const res = await fetch('https://api.spotify.com/v1/me', { headers: { Authorization: auth } });
   if (!res.ok) return null;
   const me = (await res.json()) as { id?: unknown };
-  return typeof me.id === 'string' && me.id.length > 0 ? me.id : null;
+  const id = typeof me.id === 'string' && me.id.length > 0 ? me.id : null;
+  if (id && cacheKey) await redis(['SET', cacheKey, id, 'EX', IDENTITY_TTL_S]);
+  return id;
 }
 
 /** Runs a handler, turning unexpected failures into a plain 503 without leaking details. */

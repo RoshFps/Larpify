@@ -2,11 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AuthError, completeLoginFromUrl, isSignedIn, onSignOut, signOut } from './auth/session';
 import { SpotifyApiError } from './api/client';
 import { getMe, getMyPlaylists } from './api/spotify';
-import { listAccessRequests } from './access/client';
 import { NotAllowedScreen } from './access/NotAllowedScreen';
-import { RequestsView } from './access/RequestsView';
-import { SetupCheckView } from './access/SetupCheckView';
-import type { AccessRequest } from './access/shape';
 import type { Playlist, UserProfile } from './api/types';
 import { useAutopilot } from './autopilot/useAutopilot';
 import { ArtistsView } from './components/ArtistsView';
@@ -53,8 +49,6 @@ function SignedInApp() {
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [notAllowed, setNotAllowed] = useState(false);
-  // null: not the owner (or requests aren't set up), so the Requests page stays hidden.
-  const [requests, setRequests] = useState<AccessRequest[] | null>(null);
 
   const playback = useWebPlayback(settings.volume);
   const localStateKey = playback.state
@@ -69,10 +63,6 @@ function SignedInApp() {
       // Development-mode apps answer 403 for accounts the owner hasn't listed.
       if (err instanceof SpotifyApiError && err.status === 403) setNotAllowed(true);
     });
-    listAccessRequests().then(
-      (result) => setRequests(result.status === 'owner' ? result.requests : null),
-      () => undefined,
-    );
     getMyPlaylists().then(setPlaylists, (err: unknown) => {
       if (!(err instanceof AuthError)) setPlaylistError('Could not load your playlists.');
       setPlaylists([]);
@@ -109,7 +99,6 @@ function SignedInApp() {
         playlists={playlists}
         selectedPlaylistId={settings.source === 'playlist' ? (settings.playlist?.id ?? null) : null}
         onPickPlaylist={pickPlaylist}
-        requestCount={requests?.length ?? null}
       />
 
       <main className="main panel">
@@ -155,13 +144,6 @@ function SignedInApp() {
             onChange={(artists) => updateSettings({ artists, source: 'artists' })}
           />
         )}
-        {view === 'requests' && requests && (
-          <RequestsView
-            requests={requests}
-            onRemoved={(email) => setRequests((list) => list?.filter((r) => r.email !== email) ?? null)}
-          />
-        )}
-        {requests === null && window.location.hash === '#requests' && <SetupCheckView />}
         {view === 'recap' && (
           <RecapView
             onTargetArtist={(artist) => {
@@ -179,7 +161,7 @@ function SignedInApp() {
         volume={settings.volume}
         onVolume={(volume) => updateSettings({ volume })}
       />
-      <MobileNav view={view} onNavigate={navigate} requestCount={requests?.length ?? null} />
+      <MobileNav view={view} onNavigate={navigate} />
     </div>
   );
 }

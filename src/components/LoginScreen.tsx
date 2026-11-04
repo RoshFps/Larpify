@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { beginLogin } from '../auth/session';
 import { REDIRECT_URI, SPOTIFY_CLIENT_ID } from '../config';
 import { AccessRequestForm } from '../access/AccessRequestForm';
+import { accessFormEnabled } from '../access/client';
 import { LogoMark } from './Icons';
 
 export function LoginScreen({ error }: { error: string | null }) {
@@ -38,6 +39,7 @@ export function LoginScreen({ error }: { error: string | null }) {
         )}
 
         {configured &&
+          accessFormEnabled &&
           (asking ? (
             <AccessRequestForm />
           ) : (

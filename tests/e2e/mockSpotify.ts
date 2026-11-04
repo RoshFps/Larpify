@@ -54,6 +54,10 @@ export interface World {
   /** Simulates an account the owner hasn't added in the Spotify dashboard yet. */
   notAllowlisted?: boolean;
   lastPlayRequest: { context_uri?: string; uris?: string[] } | null;
+  /** While set, every Web API call answers 429 with this Retry-After. */
+  rateLimitSeconds?: number;
+  /** Web API calls received, to check the app backs off. */
+  requestCount?: number;
   /** How many times any tab asked Spotify to start playback. */
   playCount?: number;
 }
@@ -104,6 +108,10 @@ export async function mockSpotify(context: BrowserContext, world: World, deviceI
     const json = (body: unknown) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
 
     if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}`) return route.fulfill({ status: 401 });
+    world.requestCount = (world.requestCount ?? 0) + 1;
+    if (world.rateLimitSeconds) {
+      return route.fulfill({ status: 429, headers: { 'Retry-After': String(world.rateLimitSeconds) }, body: 'Too many requests' });
+    }
 
     switch (url.pathname) {
       case '/v1/me':
@@ -178,32 +186,10 @@ export async function signIn(context: BrowserContext, settings?: object, expires
   );
 }
 
-export interface AccessStore {
-  /** True when the signed-in account is the owner (listed in ADMIN_SPOTIFY_IDS). */
-  owner: boolean;
-  requests: { name: string; email: string; requestedAt: number }[];
-}
-
-/** Stands in for /api/access-requests: public POST, owner-only GET and DELETE. */
-export async function mockAccessRequests(context: BrowserContext, store: AccessStore): Promise<void> {
-  await context.route('**/api/access-requests**', async (route) => {
-    const request = route.request();
-    const json = (body: unknown, status = 200) =>
-      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (request.method() === 'POST') {
-      const body = request.postDataJSON() as { name: string; email: string; website?: string };
-      if (!body.website) {
-        const email = body.email.trim().toLowerCase();
-        store.requests = [{ name: body.name.trim(), email, requestedAt: Date.now() }, ...store.requests.filter((r) => r.email !== email)];
-      }
-      return json({ ok: true }, 202);
-    }
-    if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}` || !store.owner) return json({ error: 'forbidden' }, 403);
-    if (request.method() === 'DELETE') {
-      const email = new URL(request.url()).searchParams.get('email');
-      store.requests = store.requests.filter((r) => r.email !== email);
-      return json({ ok: true });
-    }
-    return json({ requests: store.requests });
+/** Stands in for Web3Forms, which emails access requests to the owner. */
+export async function mockAccessForm(context: BrowserContext, sent: Record<string, string>[]): Promise<void> {
+  await context.route('https://api.web3forms.com/submit', async (route) => {
+    sent.push(route.request().postDataJSON() as Record<string, string>);
+    await route.fulfill({ contentType: 'application/json', body: '{"success":true}' });
   });
 }

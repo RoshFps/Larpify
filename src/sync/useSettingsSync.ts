@@ -3,7 +3,7 @@ import type { Settings } from '../settings/useSettings';
 import { pullSettings, pushSettings, SyncUnavailable } from './client';
 import { pickSynced, type SyncDocument } from './shape';
 
-const PULL_EVERY_MS = 10_000;
+const PULL_EVERY_MS = 60_000;
 const PUSH_DEBOUNCE_MS = 800;
 
 export type SyncStatus = 'off' | 'syncing' | 'synced' | 'offline';

@@ -1,62 +1,34 @@
-import { getAccessToken } from '../auth/session';
-import type { AccessRequest } from './shape';
+// Access requests go to the owner's inbox through Web3Forms. The page only
+// holds a Web3Forms access key, which maps to the owner's address on their
+// side, so the email itself never appears in the code or the browser.
 
-const ENDPOINT = `${import.meta.env.BASE_URL}api/access-requests`;
+const FORM_ENDPOINT = 'https://api.web3forms.com/submit';
+const ACCESS_KEY = import.meta.env.VITE_ACCESS_FORM_KEY;
 
-async function errorFrom(res: Response): Promise<Error> {
-  try {
-    const body = (await res.json()) as { error?: string };
-    if (body.error) return new Error(body.error);
-  } catch {
-    // Not JSON: most likely the API isn't deployed here.
-  }
-  return new Error('Requests aren’t available on this site yet.');
-}
+/** False when the site has no form key, which hides the request form. */
+export const accessFormEnabled = Boolean(ACCESS_KEY);
 
-/** Public: anyone can ask to be added. `website` is the hidden bot trap. */
+/** `website` is the hidden bot trap; a filled one is dropped without sending. */
 export async function requestAccess(name: string, email: string, website: string): Promise<void> {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, website }),
-  });
-  if (!res.ok) throw await errorFrom(res);
-}
-
-export type RequestList = { status: 'owner'; requests: AccessRequest[] } | { status: 'not-owner' };
-
-/** Owner only. Anyone else gets `not-owner`, which hides the Requests page. */
-export async function listAccessRequests(): Promise<RequestList> {
-  const res = await fetch(ENDPOINT, {
-    headers: { Authorization: `Bearer ${await getAccessToken()}` },
-    cache: 'no-store',
-  });
-  const isJson = res.headers.get('content-type')?.includes('application/json');
-  if (!res.ok || !isJson) return { status: 'not-owner' };
-  return { status: 'owner', requests: ((await res.json()) as { requests: AccessRequest[] }).requests };
-}
-
-export async function removeAccessRequest(email: string): Promise<void> {
-  const res = await fetch(`${ENDPOINT}?email=${encodeURIComponent(email)}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${await getAccessToken()}` },
-  });
-  if (!res.ok) throw await errorFrom(res);
-}
-
-export interface SetupCheck {
-  storage: boolean;
-  adminSet: boolean;
-  yourId: string;
-  isOwner: boolean;
-}
-
-/** Explains why the Requests page is or isn't showing for this account. */
-export async function checkAccessSetup(): Promise<SetupCheck | null> {
-  const res = await fetch(`${ENDPOINT}?check=1`, {
-    headers: { Authorization: `Bearer ${await getAccessToken()}` },
-    cache: 'no-store',
-  });
-  const isJson = res.headers.get('content-type')?.includes('application/json');
-  return res.ok && isJson ? ((await res.json()) as SetupCheck) : null;
+  if (website) return;
+  if (!ACCESS_KEY) throw new Error('Requests aren’t set up on this site.');
+  let res: Response;
+  try {
+    res = await fetch(FORM_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        access_key: ACCESS_KEY,
+        subject: `Larpify access request from ${name}`,
+        from_name: 'Larpify',
+        name,
+        // Shown in the email body, so the owner can copy it into the Spotify dashboard.
+        spotify_email: email,
+        botcheck: '',
+      }),
+    });
+  } catch {
+    throw new Error('Couldn’t send. Check your connection and try again.');
+  }
+  if (!res.ok) throw new Error('Couldn’t send right now. Try again in a bit.');
 }

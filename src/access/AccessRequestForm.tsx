@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { MAX_EMAIL, MAX_NAME } from './shape';
+import { MAX_EMAIL, MAX_NAME, parseAccessRequest } from './shape';
 import { requestAccess } from './client';
 
 /**
@@ -18,7 +18,9 @@ export function AccessRequestForm() {
     setState('sending');
     setError(null);
     try {
-      await requestAccess(name, email, website);
+      const parsed = parseAccessRequest({ name, email }, Date.now());
+      if (typeof parsed === 'string') throw new Error(parsed);
+      await requestAccess(parsed.name, parsed.email, website);
       setState('sent');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
@@ -75,7 +77,7 @@ export function AccessRequestForm() {
       <button className="btn btn--outline btn--block" disabled={state === 'sending'}>
         {state === 'sending' ? 'Sending…' : 'Request access'}
       </button>
-      <p className="login__fineprint">Only the person who runs this site sees your email, to add it in Spotify.</p>
+      <p className="login__fineprint">Your email goes only to the person who runs this site, so they can add you in Spotify.</p>
     </form>
   );
 }

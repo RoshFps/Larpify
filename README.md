@@ -16,7 +16,7 @@ A fun project for a few friends.
 - **Recap prediction**: a live guess at your year-end top 5 artists and songs, with daily rank changes, a chart of where each artist's score comes from, and a one-click way to push an artist into your top 5.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
 - **Sync across devices**: log in on your phone and computer with the same Spotify account and your settings stay in step within seconds. Only one device's autopilot plays at a time.
-- **Ask to join**: friends who aren't on your Spotify app's user list yet can request access from the login page. You see the requests on an owner-only page, copy the email into the Spotify dashboard and mark it done.
+- **Ask to join**: friends who aren't on your Spotify app's user list yet can request access from the login page, and the request lands in your email.
 - Keeps the screen awake while autopilot is on, recovers by itself if the player drops, and can open at Windows sign-in.
 
 ## Screenshots
@@ -60,14 +60,12 @@ You need Node 22+ and Spotify Premium (the browser player requires it).
 
 ### Friend access requests
 
-Spotify has no API for adding users to a development-mode app, so this is a to-do list for you rather than an automatic invite.
+Friends who aren't on your Spotify app's user list can tap **New here? Ask to be added** on the login page (or fill in the **Almost in** screen if they log in first). The request is emailed to you through [Web3Forms](https://web3forms.com), and you add them by hand under **User Management** in the [Spotify dashboard](https://developer.spotify.com/dashboard).
 
-1. Set up the Upstash store above (requests are saved there).
-2. In Vercel **Settings → Environment Variables**, add `ADMIN_SPOTIFY_IDS` with your Spotify username (find it at spotify.com → Account → Account overview → Username). Separate several with commas. Redeploy.
-3. Friends tap **New here? Ask to be added** on the login page, or see an **Almost in** screen if they log in before you've added them. They leave a name and their Spotify email.
-4. When you log in, a **Requests** page with a count appears (only for the ids in `ADMIN_SPOTIFY_IDS`). Copy each email into **User Management** in the [Spotify dashboard](https://developer.spotify.com/dashboard), then press **Mark added**.
+1. On web3forms.com, enter the email you want requests sent to. They email you an access key.
+2. In Vercel **Settings → Environment Variables**, add `VITE_ACCESS_FORM_KEY` with that key, then redeploy.
 
-The request endpoint (`api/access-requests.ts`) is public by design, so it is limited: 5 requests per hour per IP, a hidden bot trap field, short length limits, at most 200 waiting, and asking twice with the same email just updates the request. Listing and clearing requests checks your Spotify login on every call.
+Your email address is never in the code or the page. Web3Forms keeps it and only the key is public (that's how their keys are designed). Without the key the request link is hidden.
 
 Preview deployments get random URLs that Spotify won't accept, so test login on the production URL (or add a fixed preview domain to the dashboard).
 
@@ -110,7 +108,8 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 - **Tokens stay in your browser.** Access and refresh tokens are kept in the tab's local storage and removed on log out. The optional sync function receives the access token only to ask Spotify who you are, and doesn't store it.
 - **Minimal scopes**: only playback, profile and reading your playlists. Larpify can't modify your library or playlists.
 - **Locked-down page**: a Content Security Policy only allows scripts from this site and Spotify's player, plus headers that stop other sites from framing it.
-- **Owner-only admin**: the access-request list is shown only to Spotify ids in the `ADMIN_SPOTIFY_IDS` server variable, verified with Spotify on every call. Friends' emails are never shown to other friends.
+- **Your inbox stays private**: access requests go through a Web3Forms key, so your email address isn't in the code or the page.
+- **Easy on Spotify's limits**: if Spotify says to slow down, Larpify pauses every call until the wait is over (up to 30 min) and Recap shows its last result, instead of retrying and making it worse.
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.
 
 

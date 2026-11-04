@@ -5,8 +5,8 @@ import type { Artist, Track } from '../api/types';
 import { blendRankings, RANGE_WEIGHTS, type Prediction } from './predict';
 import { dayKey, loadSnapshots, previousSnapshot, saveSnapshots, withSnapshot } from './snapshots';
 
-/** Spotify updates top lists roughly daily; refreshing more often than this is wasted calls. */
-const REFRESH_MS = 10 * 60_000;
+/** Spotify updates top lists about once a day; checking more often only spends rate limit. */
+const REFRESH_MS = 6 * 60 * 60_000;
 
 /** Oldest first, matching the order of each prediction's `parts`. */
 export const RANGES: readonly TimeRange[] = ['long_term', 'medium_term', 'short_term'];
@@ -77,7 +77,7 @@ async function fetchRecap(): Promise<RecapState> {
     if (err instanceof SpotifyApiError && err.status === 429) {
       return cached
         ? { status: 'ready', recap: cached }
-        : { status: 'error', message: 'Spotify is busy right now. Try again in a minute.' };
+        : { status: 'error', message: err.message };
     }
     // Sessions from before this feature lack the user-top-read scope.
     if (err instanceof SpotifyApiError && err.status === 403) return { status: 'needs-permission' };

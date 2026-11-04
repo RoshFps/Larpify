@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react';
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' https://sdk.scdn.co",
-  "connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://*.spotify.com https://*.scdn.co",
+  "connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://*.spotify.com https://*.scdn.co https://api.web3forms.com",
   "img-src 'self' data: https://*.scdn.co https://*.spotifycdn.com",
   "style-src 'self'",
   "font-src 'self'",
