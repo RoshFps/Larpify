@@ -22,8 +22,11 @@ export function fakeBackends(redis: Map<string, unknown>) {
         case 'GET':
           return redis.get(key!) ?? null;
         case 'SET':
+          if (args.includes('NX') && redis.has(key!)) return null;
           redis.set(key!, args[0]);
           return 'OK';
+        case 'DEL':
+          return redis.delete(key!) ? 1 : 0;
         case 'INCR': {
           const next = Number(redis.get(key!) ?? 0) + 1;
           redis.set(key!, next);

@@ -16,6 +16,7 @@ import { pickImage } from './lib/format';
 import { useSelfHeal } from './player/useSelfHeal';
 import { useWebPlayback } from './player/useWebPlayback';
 import { useWakeLock } from './lib/useWakeLock';
+import { FriendsView } from './friends/FriendsView';
 import { RecapView } from './recap/RecapView';
 import { useSettings } from './settings/useSettings';
 import { useSettingsSync } from './sync/useSettingsSync';
@@ -144,6 +145,7 @@ function SignedInApp() {
             onChange={(artists) => updateSettings({ artists, source: 'artists' })}
           />
         )}
+        {view === 'friends' && <FriendsView me={me} />}
         {view === 'recap' && (
           <RecapView
             onTargetArtist={(artist) => {

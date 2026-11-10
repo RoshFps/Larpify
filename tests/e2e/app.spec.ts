@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DEVICE_ID, mockAccessForm, mockSpotify, mockSyncServer, playingOn, signIn, type World } from './mockSpotify';
+import { DEVICE_ID, mockAccessForm, mockFriends, mockSpotify, mockSyncServer, playingOn, signIn, type FriendsStore, type World } from './mockSpotify';
 
 const playlistSettings = {
   enabled: true,
@@ -359,4 +359,60 @@ test('recap asks Spotify for top lists only once a day', async ({ page, context 
   await openNav(page, 'Home');
   await openNav(page, 'Recap');
   expect(topCalls).toHaveLength(6);
+});
+
+test('friends: share a code, stop sharing, and compare with a friend', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const store: FriendsStore = {
+    mine: null,
+    byCode: {
+      PRYA22: {
+        displayName: 'Priya',
+        // Overlaps with the mocked top lists: FKA twigs (#1 here), Frank Ocean, Mitski.
+        artists: [
+          { id: 'ar2', name: 'FKA twigs' },
+          { id: 'ex0', name: 'Mitski' },
+          { id: 'ar0', name: 'Frank Ocean' },
+          { id: 'zz', name: 'Someone Else' },
+        ],
+        tracks: [{ id: 'top2', name: 'Song by FKA twigs' }],
+        updatedAt: 1,
+      },
+    },
+  };
+  await mockSpotify(context, { playback: null, lastPlayRequest: null });
+  await mockFriends(context, store);
+  await signIn(context, playlistSettings);
+  await page.goto('/');
+  await openNav(page, 'Friends');
+
+  // Nothing is shared until you opt in.
+  expect(store.mine).toBeNull();
+  await page.getByRole('button', { name: 'Share my Recap' }).click();
+  await expect(page.getByText('MINE22')).toBeVisible();
+  const shared = store.mine!.recap as { artists: { name: string }[]; tracks: unknown[] };
+  expect(shared.artists).toHaveLength(10);
+  expect(JSON.stringify(shared)).not.toMatch(/token|email|fake-access/i);
+
+  await page.getByRole('button', { name: 'Stop sharing' }).click();
+  await expect(page.getByRole('button', { name: 'Share my Recap' })).toBeVisible();
+  expect(store.mine).toBeNull();
+
+  // Compare.
+  await page.getByLabel('Their code').fill('prya22');
+  await page.getByRole('button', { name: 'Compare' }).click();
+  await expect(page.locator('.compare__match')).toContainText(/Priya match \d+%/);
+  const artists = page.getByRole('region', { name: 'Artists in common' });
+  await expect(artists).toContainText('FKA twigs');
+  await expect(artists).toContainText('Mitski');
+  await expect(artists).not.toContainText('Someone Else');
+
+  await page.getByLabel('Their code').fill('NEVR22');
+  await page.getByRole('button', { name: 'Compare' }).click();
+  await expect(page.getByRole('alert')).toContainText('No one is sharing');
+  await page.getByLabel('Their code').fill('abc');
+  await page.getByRole('button', { name: 'Compare' }).click();
+  await expect(page.getByRole('alert')).toContainText('6 letters');
+  expect(errors.filter((e) => !e.includes('404'))).toEqual([]);
 });

@@ -16,6 +16,7 @@ A fun project for a few friends.
 - **Recap prediction**: a guess at your year-end top 10 artists and songs, refreshed once a day, with rank changes, your #1 over the last 4 weeks, 3 months and 6 months, a chart of where each artist's score comes from, and a predictor for how many minutes a day it would take to make a new artist or song your #1.
 - Spotify-style interface that works on desktop and phone, with a player bar you can control.
 - **Sync across devices**: log in on your phone and computer with the same Spotify account and your settings stay in step within seconds. Only one device's autopilot plays at a time.
+- **Compare with friends**: turn on "Share my Recap" to get a 6-character code. A friend types it in to see a match %, the artists and songs you share and each other's #1s. Only names and ranks are shared (never emails or tokens), looking up codes is rate limited, and stopping sharing deletes your data. Needs the Upstash store.
 - **Ask to join**: friends who aren't on your Spotify app's user list yet can request access from the login page, and the request lands in your email.
 - Keeps the screen awake while autopilot is on, recovers by itself if the player drops, and can open at Windows sign-in.
 
@@ -108,6 +109,7 @@ GitHub Actions runs all of these on every push, plus a [gitleaks](https://github
 - **Tokens stay in your browser.** Access and refresh tokens are kept in the tab's local storage and removed on log out. The optional sync function receives the access token only to ask Spotify who you are, and doesn't store it.
 - **Minimal scopes**: only playback, profile and reading your playlists. Larpify can't modify your library or playlists.
 - **Locked-down page**: a Content Security Policy only allows scripts from this site and Spotify's player, plus headers that stop other sites from framing it.
+- **Sharing is opt-in**: nothing about your Recap is stored until you press Share. Friends need a Spotify login of their own and your code, and wrong codes and stopped sharers look identical.
 - **Your inbox stays private**: access requests go through a Web3Forms key, so your email address isn't in the code or the page.
 - **Easy on Spotify's limits**: if Spotify says to slow down, Larpify pauses every call until the wait is over (up to 30 min) and Recap shows its last result, instead of retrying and making it worse.
 - **Checks on every push**: gitleaks on the git history, a scan of the built bundle, and `npm audit`.

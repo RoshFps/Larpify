@@ -193,3 +193,31 @@ export async function mockAccessForm(context: BrowserContext, sent: Record<strin
     await route.fulfill({ contentType: 'application/json', body: '{"success":true}' });
   });
 }
+
+export interface FriendsStore {
+  /** Recaps by code, as a friend would have shared them. */
+  byCode: Record<string, unknown>;
+  mine: { code: string; recap: unknown } | null;
+}
+
+/** Stands in for /api/friends. */
+export async function mockFriends(context: BrowserContext, store: FriendsStore): Promise<void> {
+  await context.route('**/api/friends**', async (route) => {
+    const request = route.request();
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (request.headers().authorization !== `Bearer ${ACCESS_TOKEN}`) return json({ error: 'no' }, 401);
+    const code = new URL(request.url()).searchParams.get('code');
+    if (request.method() === 'PUT') {
+      store.mine = { code: 'MINE22', recap: request.postDataJSON() };
+      return json({ code: 'MINE22' });
+    }
+    if (request.method() === 'DELETE') {
+      store.mine = null;
+      return json({ ok: true });
+    }
+    if (code === null) return json({ sharing: store.mine !== null, code: store.mine?.code ?? null });
+    const found = store.byCode[code];
+    return found ? json(found) : json({ error: 'No one is sharing with that code.' }, 404);
+  });
+}
