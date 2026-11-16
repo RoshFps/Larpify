@@ -15,9 +15,11 @@ export function LoginScreen({ error }: { error: string | null }) {
       <div className="login__card">
         <LogoMark size={56} className="login__logo" />
         <h1 className="login__title">Larpify</h1>
-        <p className="login__tagline">Your music keeps playing on this tab while you're away.</p>
-         <p className="login__tagline">Made by Rosh.</p>
-
+        <p className="login__tagline">
+          Your music keeps playing on this tab while you're away.
+          <br />
+          <span>Made by Rosh.</span>
+        </p>
 
         {configured ? (
           <button
